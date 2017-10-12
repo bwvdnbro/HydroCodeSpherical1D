@@ -875,6 +875,13 @@ public:
                    double PR, double &rhosol, double &usol, double &Psol,
                    double dxdt = 0.) const {
 
+    // sanity checks for input values
+    if (rhoL < 0. || rhoR < 0. || PL < 0. || PR < 0.) {
+      cmac_error("Unphysical values given to Riemann solver: (rhoL: %g, uL: "
+                 "%g, PL: %g, rhoR: %g, uR: %g, PR: %g)!",
+                 rhoL, uL, PL, rhoR, uR, PR);
+    }
+
     // get the soundspeeds
     double aL = get_soundspeed(rhoL, PL);
     double aR = get_soundspeed(rhoR, PR);
