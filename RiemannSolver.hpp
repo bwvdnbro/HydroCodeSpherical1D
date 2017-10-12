@@ -1,19 +1,19 @@
 /*******************************************************************************
- * This file is part of python_finite_volume_solver
+ * This file is part of HydroCodeSpherical1D
  * Copyright (C) 2017 Bert Vandenbroucke (bert.vandenbroucke@gmail.com)
  *
- * python_finite_volume_solver is free software: you can redistribute it and/or
+ * HydroCodeSpherical1D is free software: you can redistribute it and/or
  * modify it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of the License,
  * or (at your option) any later version.
  *
- * python_finite_volume_solver is distributed in the hope that it will be
+ * HydroCodeSpherical1D is distributed in the hope that it will be
  * useful, but WITOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero
  * General Public License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
- * along with python_finite_volume_solver. If not, see
+ * along with HydroCodeSpherical1D. If not, see
  * <http://www.gnu.org/licenses/>.
  ******************************************************************************/
 
