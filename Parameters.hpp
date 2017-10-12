@@ -22,7 +22,7 @@
 #define RMAX 0.475
 
 /*! @brief Number of spherical shells (1D "cells") in between RMIN and RMAX. */
-#define NCELL 1000
+#define NCELL 100
 /*! @brief Adiabatic index. */
 #define GAMMA 1.001
 /*! @brief Fixed time step (in internal units of T). */

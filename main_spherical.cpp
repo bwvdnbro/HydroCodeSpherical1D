@@ -163,6 +163,9 @@ public:
 
   /*! @brief Gravitational acceleration (in internal units of L T^-2). */
   double _a;
+
+  // ionization quantities
+  double _nfac;
 };
 
 /**
@@ -207,6 +210,7 @@ void init(Cell &cell) {
   }
   cell._u = 0.;
   cell._a = 0.;
+  cell._nfac = 0.;
 #elif IC == IC_BONDI
   const double r_inv = 0.9 / cell._midpoint;
   cell._rho = bondi_density(r_inv);
@@ -214,6 +218,7 @@ void init(Cell &cell) {
   cell._P = bondi_pressure(r_inv);
   const double r2 = cell._midpoint * cell._midpoint;
   cell._a = -G * MASS_POINT_MASS / r2;
+  cell._nfac = 0.;
 #endif
 }
 
@@ -233,7 +238,7 @@ void write_snapshot(unsigned int istep, const Cell cells[NCELL + 2]) {
   std::ofstream ofile(filename.str().c_str());
   for (unsigned int i = 1; i < NCELL + 1; ++i) {
     ofile << cells[i]._midpoint << "\t" << cells[i]._rho << "\t" << cells[i]._u
-          << "\t" << cells[i]._P << "\t" << cells[i]._a << "\n";
+          << "\t" << cells[i]._P << "\t" << cells[i]._nfac << "\n";
   }
   ofile.close();
 }
@@ -394,14 +399,12 @@ int main(int argc, char **argv) {
           const double rmax = cells[i]._midpoint + HALF_CELLSIZE;
           const double Vshell = (rmax * rmax * rmax - rmin * rmin * rmin) / 3.;
           const double Cshell = Vshell * cells[i]._rho * cells[i]._rho;
-          if (Cshell <= Cion) {
-            cells[i]._P = 10. * ISOTHERMAL_C * cells[i]._rho;
-          } else {
-            const double ifac = Cion / Cshell;
-            cells[i]._P = ISOTHERMAL_C * cells[i]._rho * (9. * ifac + 1.);
-          }
+          const double nfac = std::min(1., Cshell / Cion);
+          const double ifac = 1. - nfac;
+          cells[i]._P = ISOTHERMAL_C * cells[i]._rho * (10. * ifac + nfac);
           // subtract this shell's ionization budget from the total
-          Cion -= Cshell;
+          Cion -= ifac * Cshell;
+          cells[i]._nfac = nfac;
         } else {
           cells[i]._P = ISOTHERMAL_C * cells[i]._rho;
         }
