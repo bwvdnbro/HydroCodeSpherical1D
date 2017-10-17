@@ -16,262 +16,18 @@
  * along with HydroCodeSpherical1D. If not, see <http://www.gnu.org/licenses/>.
  ******************************************************************************/
 
-// exact Riemann solver
+#include "Bondi.hpp"
+#include "Cell.hpp"
+#include "IC.hpp"
 #include "RiemannSolver.hpp"
+#include "SafeParameters.hpp"
+#include "Units.hpp"
 
 // standard libraries
 #include <cmath>
 #include <fstream>
 #include <iostream>
 #include <sstream>
-
-// USEFUL SIMULATION CONSTANTS
-// These are used as aliases to check in the rest of the program.
-// Since invalid defines default to 0, we have to start from 1 (otherwise our
-// sensibility checks don't work)
-
-// Possible types of boundary conditions.
-/*! @brief Open boundaries: inflow or outflow depending on the local flow
- *  velocity */
-#define BOUNDARIES_OPEN 1
-/*! @brief Reflective boundaries: outgoing flows are reflected inwards. */
-#define BOUNDARIES_REFLECTIVE 2
-/*! @brief Bondi boundaries: impose the Bondi solution on the boundaries. */
-#define BOUNDARIES_BONDI 3
-
-// Possible types of equation of state.
-/*! @brief Ideal gas (adiabatic) equation of state. */
-#define EOS_IDEAL 1
-/*! @brief Isothermal equation of state. */
-#define EOS_ISOTHERMAL 2
-/*! @brief Bondi equation of state: isothermal gas with ionization pressure. */
-#define EOS_BONDI 3
-
-// Possible types of external potentials.
-/*! @brief No external potential (no gravity). */
-#define POTENTIAL_NONE 1
-/*! @brief Point mass external potential. */
-#define POTENTIAL_POINT_MASS 2
-
-// Possible types of initial conditions
-/*! @brief 1D spherical Sod shock setup. */
-#define IC_SOD 1
-/*! @brief 1D spherical Bondi accretion setup. */
-#define IC_BONDI 2
-
-// PHYSICAL CONSTANTS
-
-/*! @brief Newton gravity constant G (in m^3 kg^-1 s^-2). */
-#define NEWTON_G_IN_SI 6.67408e-11
-
-/*! @brief Boltzmann constant k (in m^2 kg s^-1 K^-1). */
-#define BOLTZMANN_K_IN_SI 1.38064852e-23
-
-/*! @brief Hydrogen mass (in kg). */
-#define HYDROGEN_MASS_IN_SI 1.674e-27
-
-/*! @brief Solar mass (in kg). */
-#define SOLAR_MASS_IN_SI 1.9891e30
-
-/*! @brief Year (in s). */
-#define YEAR_IN_SI (365.25 * 24. * 3600.)
-
-/*! @brief Astronomical unit (in m). */
-#define AU_IN_SI 1.496e11
-
-// UNIT CONVERSIONS
-
-/*! @brief Time unit (in s). */
-#define UNIT_TIME_IN_SI                                                        \
-  std::sqrt(G *UNIT_LENGTH_IN_SI *UNIT_LENGTH_IN_SI *UNIT_LENGTH_IN_SI /       \
-            (UNIT_MASS_IN_SI * NEWTON_G_IN_SI))
-
-/*! @brief Density unit (in kg m^-3). */
-#define UNIT_DENSITY_IN_SI                                                     \
-  (UNIT_MASS_IN_SI /                                                           \
-   (UNIT_LENGTH_IN_SI * UNIT_LENGTH_IN_SI * UNIT_LENGTH_IN_SI))
-
-/*! @brief Velocity unit (in m s^-1). */
-#define UNIT_VELOCITY_IN_SI (UNIT_LENGTH_IN_SI / UNIT_TIME_IN_SI)
-
-/*! @brief Pressure unit (in kg m^-2 s^-2). */
-#define UNIT_PRESSURE_IN_SI                                                    \
-  (UNIT_MASS_IN_SI / (UNIT_LENGTH_IN_SI * UNIT_LENGTH_IN_SI *                  \
-                      UNIT_TIME_IN_SI * UNIT_TIME_IN_SI))
-
-/*! @brief Mass unit (in Msol). */
-#define UNIT_MASS_IN_MSOL (UNIT_MASS_IN_SI / SOLAR_MASS_IN_SI)
-
-/*! @brief Time unit (in yr). */
-#define UNIT_TIME_IN_YR (UNIT_TIME_IN_SI / YEAR_IN_SI)
-
-/*! @brief Lenght unit (in AU). */
-#define UNIT_LENGTH_IN_AU (UNIT_LENGTH_IN_SI / AU_IN_SI)
-
-// READ SIMULATION PARAMETERS
-// for clarity, they are stored in a separate file
-#include "Parameters.hpp"
-
-// end of customizable parameters, the parameters below depend on the ones
-// above
-
-/*! @brief Size of the simulation "box" (in internal units of L). */
-#define BOXSIZE (RMAX - RMIN)
-/*! @brief Half the size of a single "cell" of the simulation (in internal units
- *  of L). */
-#define CELLSIZE (BOXSIZE / NCELL)
-#define HALF_CELLSIZE (0.5 * CELLSIZE)
-/*! @brief Isothermal sound speed squared (if EOS_ISOTHERMAL is selected, in
- *  internal units of L T^-1). */
-#define ISOTHERMAL_C_SQUARED                                                   \
-  (ISOTHERMAL_TEMPERATURE * BOLTZMANN_K_IN_SI / HYDROGEN_MASS_IN_SI /          \
-   UNIT_VELOCITY_IN_SI / UNIT_VELOCITY_IN_SI)
-
-// sanity checks on selected types
-
-/*! @brief Macro that prints the actual value of a macro. */
-#define value_of_macro_as_string(macro) #macro
-/*! @brief Macro that prints a macro name and its actual value. */
-#define value_of_macro(macro) #macro ": " value_of_macro_as_string(macro)
-
-// check boundary conditions
-#ifndef BOUNDARIES
-#error "No boundary conditions selected!"
-#else
-#if BOUNDARIES != BOUNDARIES_OPEN && BOUNDARIES != BOUNDARIES_REFLECTIVE &&    \
-    BOUNDARIES != BOUNDARIES_BONDI
-#pragma message(value_of_macro(BOUNDARIES))
-#error "Invalid boundary conditions selected!"
-#endif
-#endif
-
-// check the equation of state
-#ifndef EOS
-#error "No equation of state selected!"
-#else
-#if EOS != EOS_IDEAL && EOS != EOS_ISOTHERMAL && EOS != EOS_BONDI
-#pragma message(value_of_macro(EOS))
-#error "Invalid equation of state selected!"
-#endif
-#endif
-
-// check the potential
-#ifndef POTENTIAL
-#error "No external potential selected!"
-#else
-#if POTENTIAL != POTENTIAL_NONE && POTENTIAL != POTENTIAL_POINT_MASS
-#pragma message(value_of_macro(POTENTIAL))
-#error "Invalid potential selected!"
-#endif
-#endif
-
-/**
- * @brief Single cell of the grid.
- */
-class Cell {
-public:
-  // primitive (volume dependent) variables
-
-  /*! @brief Density (in internal units of M L^-3). */
-  double _rho;
-  /*! @brief Fluid velocity (in internal units of L T^-1). */
-  double _u;
-  /*! @brief Pressure (in internal units of M L^-1 T^-2). */
-  double _P;
-
-  /*! @brief Density gradient (in internal units of M L^-4). */
-  double _grad_rho;
-  /*! @brief Velocity gradient (in internal units of T^-1). */
-  double _grad_u;
-  /*! @brief Pressure gradient (in internal units of M L^-2 T^-2). */
-  double _grad_P;
-
-  // conserved variables
-
-  /*! @brief Mass (in internal units of M). */
-  double _m;
-  /*! @brief Momentum (in internal units of L M T^-1). */
-  double _p;
-  /*! @brief Total energy (in internal units of M L^2 T^-2). */
-  double _E;
-
-  // geometrical quantities
-
-  /*! @brief 1D cell volume: radial length of the spherical shell (in internal
-   *  units of L). */
-  double _V;
-  /*! @brief Actual 3D cell volume: volume of the shell (in internal units of
-   *  L^3). */
-  double _Vreal;
-  /*! @brief Radial coordinate of the center of the shell (in internal units of
-   *  L). */
-  double _midpoint;
-
-  /*! @brief Neighbouring cell to the right. */
-  Cell *_right_ngb;
-
-  // gravitational quantities
-
-  /*! @brief Gravitational acceleration (in internal units of L T^-2). */
-  double _a;
-
-  // ionization quantities
-  double _nfac;
-};
-
-/**
- * @brief Get the value of the Bondi density at the given inverse radius.
- *
- * @param rinv Inverse radius (in internal units of L^-1).
- * @return Value of the density (in internal units of M L^-3).
- */
-double bondi_density(double rinv) { return std::pow(rinv, 1.2); }
-
-/**
- * @brief Get the value of the Bondi velocity at the given inverse radius.
- *
- * @param rinv Inverse radius (in internal units of L^-1).
- * @return Value of the fluid velocity (in internal units of L T^-1).
- */
-double bondi_velocity(double rinv) { return -std::pow(rinv, 0.8); }
-
-/**
- * @brief Get the value of the Bondi pressure at the given inverse radius.
- *
- * @param rinv Inverse radius (in internal units of L^-1).
- * @return Value of the pressure (in internal units of M L^-1 T^-2).
- */
-double bondi_pressure(double rinv) {
-  return ISOTHERMAL_C_SQUARED * bondi_density(rinv);
-}
-
-/**
- * @brief Initialize a cell of the grid.
- *
- * @param cell Cell to initialize.
- */
-void init(Cell &cell) {
-#if IC == IC_SOD
-  if (cell._midpoint < 0.25) {
-    cell._rho = 1.;
-    cell._P = 1.;
-  } else {
-    cell._rho = 0.125;
-    cell._P = 0.1;
-  }
-  cell._u = 0.;
-  cell._a = 0.;
-  cell._nfac = 0.;
-#elif IC == IC_BONDI
-  const double r_inv = 0.9 / cell._midpoint;
-  cell._rho = bondi_density(r_inv);
-  cell._u = bondi_velocity(r_inv);
-  cell._P = bondi_pressure(r_inv);
-  const double r2 = cell._midpoint * cell._midpoint;
-  cell._a = -G * MASS_POINT_MASS / r2;
-  cell._nfac = 0.;
-#endif
-}
 
 double get_neutral_fraction2(double r, double rion) {
   const double rmax = r + HALF_CELLSIZE;
@@ -420,28 +176,15 @@ int main(int argc, char **argv) {
     }
   }
 
-#if IC == IC_FILE
-  // open the initial condition file
-  std::ifstream icfile("ic.dat");
-#endif
-  // initialize the cells (we don't initialize the ghost cells)
-  for (unsigned int i = 1; i < NCELL + 1; ++i) {
-#if IC == IC_FILE
-    // read the primitive variables from the initial condition file
-    icfile.read(reinterpret_cast<char *>(&cells[i]._rho), sizeof(double));
-    icfile.read(reinterpret_cast<char *>(&cells[i]._u), sizeof(double));
-    icfile.read(reinterpret_cast<char *>(&cells[i]._P), sizeof(double));
-    icfile.read(reinterpret_cast<char *>(&cells[i]._a), sizeof(double));
-#else
-    // get the primitive variables from the initial condition
-    init(cells[i]);
+  // set up the initial condition
+  initialize(cells);
 
+  // convert primitive variables to conserved variables
+  for (unsigned int i = 1; i < NCELL + 1; ++i) {
 #if EOS == EOS_ISOTHERMAL
     // if an isothermal equation of state is used, the pressure is a function of
     // the density, and the initial condition is overwritten
     cells[i]._P = ISOTHERMAL_C_SQUARED * cells[i]._rho;
-#endif
-
 #endif
 
     // use the cell volume to convert primitive into conserved variables
@@ -450,11 +193,6 @@ int main(int argc, char **argv) {
     cells[i]._E = cells[i]._P * cells[i]._V / (GAMMA - 1.) +
                   0.5 * cells[i]._u * cells[i]._p;
   }
-
-#if IC == IC_FILE
-  // close the initial condition file
-  icfile.close();
-#endif
 
   // initialize the exact Riemann solver
   RiemannSolver solver(GAMMA);

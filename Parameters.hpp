@@ -16,6 +16,17 @@
  * along with HydroCodeSpherical1D. If not, see <http://www.gnu.org/licenses/>.
  ******************************************************************************/
 
+/**
+ * @file Parameters.hpp
+ *
+ * @brief Simulation parameters. This is the only file that should be altered if
+ * no new functionality is added.
+ *
+ * @author Bert Vandenbroucke (bv7@st-andrews.ac.uk)
+ */
+#ifndef PARAMETERS_HPP
+#define PARAMETERS_HPP
+
 /*! @brief Minimum radius (in internal units of L). */
 #define RMIN 0.1
 /*! @brief Maximum radius (in internal units of L). */
@@ -76,3 +87,5 @@
 
 /*! @brief Length unit in m. */
 #define UNIT_LENGTH_IN_SI 1.2e13
+
+#endif // PARAMETERS_HPP
