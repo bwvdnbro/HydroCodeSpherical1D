@@ -22,18 +22,21 @@
 #define RMAX 0.475
 
 /*! @brief Number of spherical shells (1D "cells") in between RMIN and RMAX. */
-#define NCELL 100
+#define NCELL 2000
 /*! @brief Adiabatic index. */
 #define GAMMA 1.001
 /*! @brief Fixed time step (in internal units of T). */
 #define DT 0.00001
 /*! @brief Number of time steps. */
-#define NSTEP 100000
+#define NSTEP 200000
 /*! @brief Number of time steps between subsequent snapshot dumps. */
-#define SNAPSTEP 1000
+#define SNAPSTEP 200
 
 /*! @brief Number of time steps before switching on ionization. */
-#define NSTEP_RELAX 20000
+#define NSTEP_RELAX 0
+
+/*! @brief Width of the ionization transition region. */
+#define IONIZATION_TRANSITION_WIDTH 0.05
 
 /*! @brief Choice of boundary conditions. */
 #define BOUNDARIES BOUNDARIES_BONDI
@@ -43,7 +46,10 @@
 
 /*! @brief Isothermal internal energy (if EOS_ISOTHERMAL is selected, in
  *  internal units of L^2 T^-2). */
-#define ISOTHERMAL_U 31.25
+#define ISOTHERMAL_U 1.145070026
+
+/*! @brief Constant temperature in the neutral region (in K). */
+#define ISOTHERMAL_TEMPERATURE 100.
 
 /*! @brief Choice of external potential. */
 #define POTENTIAL POTENTIAL_POINT_MASS
@@ -60,4 +66,13 @@
 //#define NO_GRADIENTS
 
 /*! @brief Choice of initial conditions. */
-#define IC IC_BONDI
+#define IC IC_FILE
+
+/*! @brief Approximate initial ionization radius (in internal units of L). */
+#define INITIAL_IONIZATION_RADIUS 0.3
+
+/*! @brief Mass unit in kg. */
+#define UNIT_MASS_IN_SI 2.479e31
+
+/*! @brief Length unit in m. */
+#define UNIT_LENGTH_IN_SI 1.2e13

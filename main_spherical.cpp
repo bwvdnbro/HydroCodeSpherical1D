@@ -59,6 +59,55 @@
 /*! @brief 1D spherical Bondi accretion setup. */
 #define IC_BONDI 2
 
+// PHYSICAL CONSTANTS
+
+/*! @brief Newton gravity constant G (in m^3 kg^-1 s^-2). */
+#define NEWTON_G_IN_SI 6.67408e-11
+
+/*! @brief Boltzmann constant k (in m^2 kg s^-1 K^-1). */
+#define BOLTZMANN_K_IN_SI 1.38064852e-23
+
+/*! @brief Hydrogen mass (in kg). */
+#define HYDROGEN_MASS_IN_SI 1.674e-27
+
+/*! @brief Solar mass (in kg). */
+#define SOLAR_MASS_IN_SI 1.9891e30
+
+/*! @brief Year (in s). */
+#define YEAR_IN_SI (365.25 * 24. * 3600.)
+
+/*! @brief Astronomical unit (in m). */
+#define AU_IN_SI 1.496e11
+
+// UNIT CONVERSIONS
+
+/*! @brief Time unit (in s). */
+#define UNIT_TIME_IN_SI                                                        \
+  std::sqrt(G *UNIT_LENGTH_IN_SI *UNIT_LENGTH_IN_SI *UNIT_LENGTH_IN_SI /       \
+            (UNIT_MASS_IN_SI * NEWTON_G_IN_SI))
+
+/*! @brief Density unit (in kg m^-3). */
+#define UNIT_DENSITY_IN_SI                                                     \
+  (UNIT_MASS_IN_SI /                                                           \
+   (UNIT_LENGTH_IN_SI * UNIT_LENGTH_IN_SI * UNIT_LENGTH_IN_SI))
+
+/*! @brief Velocity unit (in m s^-1). */
+#define UNIT_VELOCITY_IN_SI (UNIT_LENGTH_IN_SI / UNIT_TIME_IN_SI)
+
+/*! @brief Pressure unit (in kg m^-2 s^-2). */
+#define UNIT_PRESSURE_IN_SI                                                    \
+  (UNIT_MASS_IN_SI / (UNIT_LENGTH_IN_SI * UNIT_LENGTH_IN_SI *                  \
+                      UNIT_TIME_IN_SI * UNIT_TIME_IN_SI))
+
+/*! @brief Mass unit (in Msol). */
+#define UNIT_MASS_IN_MSOL (UNIT_MASS_IN_SI / SOLAR_MASS_IN_SI)
+
+/*! @brief Time unit (in yr). */
+#define UNIT_TIME_IN_YR (UNIT_TIME_IN_SI / YEAR_IN_SI)
+
+/*! @brief Lenght unit (in AU). */
+#define UNIT_LENGTH_IN_AU (UNIT_LENGTH_IN_SI / AU_IN_SI)
+
 // READ SIMULATION PARAMETERS
 // for clarity, they are stored in a separate file
 #include "Parameters.hpp"
@@ -74,7 +123,9 @@
 #define HALF_CELLSIZE (0.5 * CELLSIZE)
 /*! @brief Isothermal sound speed squared (if EOS_ISOTHERMAL is selected, in
  *  internal units of L T^-1). */
-#define ISOTHERMAL_C (ISOTHERMAL_U * (GAMMA - 1.))
+#define ISOTHERMAL_C_SQUARED                                                   \
+  (ISOTHERMAL_TEMPERATURE * BOLTZMANN_K_IN_SI / HYDROGEN_MASS_IN_SI /          \
+   UNIT_VELOCITY_IN_SI / UNIT_VELOCITY_IN_SI)
 
 // sanity checks on selected types
 
@@ -191,7 +242,7 @@ double bondi_velocity(double rinv) { return -std::pow(rinv, 0.8); }
  * @return Value of the pressure (in internal units of M L^-1 T^-2).
  */
 double bondi_pressure(double rinv) {
-  return ISOTHERMAL_C * bondi_density(rinv);
+  return ISOTHERMAL_C_SQUARED * bondi_density(rinv);
 }
 
 /**
@@ -222,6 +273,44 @@ void init(Cell &cell) {
 #endif
 }
 
+double get_neutral_fraction2(double r, double rion) {
+  const double rmax = r + HALF_CELLSIZE;
+  if (rion > rmax) {
+    return 0.;
+  } else {
+    const double rmin = r - HALF_CELLSIZE;
+    if (rion < rmin) {
+      return 1.;
+    } else {
+      return (rion - rmax) / (rmin - rmax);
+    }
+  }
+}
+
+double get_neutral_fraction(double r, double rion) {
+  const double rmin = r - HALF_CELLSIZE;
+  const double rmax = r + HALF_CELLSIZE;
+  const double rion_min = rion - 0.5 * IONIZATION_TRANSITION_WIDTH;
+  const double rion_max = rion + 0.5 * IONIZATION_TRANSITION_WIDTH;
+  const double slope = 1. / (rion_max - rion_min);
+  // Note: we assume rmax - rmin << rion_max - rion_min
+  if (rmax < rion_min) {
+    return 0.;
+  } else if (rmin < rion_min && rmax > rion_min) {
+    return 0.5 * (rmax - rion_min) * (rmax - rion_min) * slope / (rmax - rmin);
+  } else if (rmin > rion_min && rmax < rion_max) {
+    return ((rmin - rion_min) * slope * (rmax - rmin) +
+            0.5 * (rmax - rmin) * slope * (rmax - rmin)) /
+           (rmax - rmin);
+  } else if (rmin < rion_max && rmax > rion_max) {
+    return ((rmax - rion_max) + (rmin - rion_min) * slope * (rion_max - rmin) +
+            0.5 * (rion_max - rmin) * (rion_max - rmin) * slope) /
+           (rmax - rmin);
+  } else {
+    return 1.;
+  }
+}
+
 /**
  * @brief Write a snapshot with the given index.
  *
@@ -230,15 +319,19 @@ void init(Cell &cell) {
  */
 void write_snapshot(unsigned int istep, const Cell cells[NCELL + 2]) {
   std::stringstream filename;
-  filename << "snap_";
+  filename << "snapshot_";
   filename.fill('0');
-  filename.width(3);
+  filename.width(4);
   filename << (istep / SNAPSTEP);
   filename << ".txt";
   std::ofstream ofile(filename.str().c_str());
+  ofile << "# time: " << istep * DT * UNIT_TIME_IN_SI << "\n";
   for (unsigned int i = 1; i < NCELL + 1; ++i) {
-    ofile << cells[i]._midpoint << "\t" << cells[i]._rho << "\t" << cells[i]._u
-          << "\t" << cells[i]._P << "\t" << cells[i]._nfac << "\n";
+    ofile << cells[i]._midpoint * UNIT_LENGTH_IN_SI << "\t"
+          << cells[i]._rho * UNIT_DENSITY_IN_SI << "\t"
+          << cells[i]._u * UNIT_VELOCITY_IN_SI << "\t"
+          << cells[i]._P * UNIT_PRESSURE_IN_SI << "\t" << cells[i]._nfac
+          << "\n";
   }
   ofile.close();
 }
@@ -267,9 +360,49 @@ void write_binary_snapshot(const Cell cells[NCELL + 2]) {
  */
 int main(int argc, char **argv) {
 
-#if EOS == EOS_ISOTHERMAL
-  std::cout << "ISOTHERMAL_C: " << ISOTHERMAL_C << std::endl;
+  //  for(unsigned int i = 0; i < 1000; ++i){
+  //    const double x = 0.2 + 0.001 * 0.2 * i;
+  //    std::cout << x << "\t" << get_neutral_fraction(x, 0.3) << std::endl;
+  //  }
+  //  return 0;
+
+  std::cout << "UNIT_LENGTH_IN_SI: " << UNIT_LENGTH_IN_SI << std::endl;
+  std::cout << "UNIT_MASS_IN_SI: " << UNIT_MASS_IN_SI << std::endl;
+  std::cout << "UNIT_TIME_IN_SI: " << UNIT_TIME_IN_SI << std::endl;
+  std::cout << "UNIT_DENSITY_IN_SI: " << UNIT_DENSITY_IN_SI << std::endl;
+  std::cout << "UNIT_VELOCITY_IN_SI: " << UNIT_VELOCITY_IN_SI << std::endl;
+  std::cout << "UNIT_PRESSURE_IN_SI: " << UNIT_PRESSURE_IN_SI << std::endl;
+
+#if EOS == EOS_ISOTHERMAL || EOS == EOS_BONDI
+  std::cout << "Newton G: "
+            << G * (UNIT_LENGTH_IN_SI * UNIT_LENGTH_IN_SI * UNIT_LENGTH_IN_SI /
+                    UNIT_MASS_IN_SI / UNIT_TIME_IN_SI / UNIT_TIME_IN_SI)
+            << " m^3 kg^-1 s^-2" << std::endl;
+  std::cout << "ISOTHERMAL_C_SQUARED: " << ISOTHERMAL_C_SQUARED << std::endl;
+  std::cout << "Neutral sound speed: "
+            << std::sqrt(ISOTHERMAL_C_SQUARED) * UNIT_VELOCITY_IN_SI
+            << " m s^-1" << std::endl;
+  std::cout << "Neutral temperature: "
+            << ISOTHERMAL_C_SQUARED * HYDROGEN_MASS_IN_SI *
+                   UNIT_VELOCITY_IN_SI * UNIT_VELOCITY_IN_SI / BOLTZMANN_K_IN_SI
+            << " K" << std::endl;
 #endif
+
+  std::cout << "Point mass: " << MASS_POINT_MASS * UNIT_MASS_IN_SI << " kg"
+            << std::endl;
+
+  std::cout << "Useful units:" << std::endl;
+  std::cout << "Point mass: " << MASS_POINT_MASS * UNIT_MASS_IN_MSOL << " Msol"
+            << std::endl;
+  std::cout << "Time step: " << DT * UNIT_TIME_IN_YR << " yr" << std::endl;
+  std::cout << "Total simulation time: " << DT * NSTEP * UNIT_TIME_IN_YR
+            << " yr" << std::endl;
+  std::cout << "Time in between snapshots: " << DT * SNAPSTEP * UNIT_TIME_IN_YR
+            << " yr " << std::endl;
+  std::cout << "Minimum radius: " << RMIN * UNIT_LENGTH_IN_AU << " AU"
+            << std::endl;
+  std::cout << "Maximum radius: " << RMAX * UNIT_LENGTH_IN_AU << " AU"
+            << std::endl;
 
   // create the 1D spherical grid
   // we create 2 ghost cells to the left and to the right of the simulation box
@@ -306,7 +439,7 @@ int main(int argc, char **argv) {
 #if EOS == EOS_ISOTHERMAL
     // if an isothermal equation of state is used, the pressure is a function of
     // the density, and the initial condition is overwritten
-    cells[i]._P = ISOTHERMAL_C * cells[i]._rho;
+    cells[i]._P = ISOTHERMAL_C_SQUARED * cells[i]._rho;
 #endif
 
 #endif
@@ -375,8 +508,10 @@ int main(int argc, char **argv) {
     // total ionizing budget of the central source
     // every shell will absorb a fraction of this budget until the ionization
     // radius is reached
-    double Cion = 5. * std::pow(0.9, 2.4) / 3. *
-                  (std::pow(0.25, 0.6) - std::pow(0.1, 0.6));
+    double Cion =
+        5. * std::pow(0.9, 2.4) / 3. *
+        (std::pow(INITIAL_IONIZATION_RADIUS, 0.6) - std::pow(0.1, 0.6));
+    double rion = 0.;
 #endif
     // update the primitive variables based on the values of the conserved
     // variables and the current cell volume
@@ -388,31 +523,40 @@ int main(int argc, char **argv) {
           (GAMMA - 1.) * (cells[i]._E / cells[i]._V -
                           0.5 * cells[i]._rho * cells[i]._u * cells[i]._u);
 #elif EOS == EOS_ISOTHERMAL
-      cells[i]._P = ISOTHERMAL_C * cells[i]._rho;
+      cells[i]._P = ISOTHERMAL_C_SQUARED * cells[i]._rho;
 #elif EOS == EOS_BONDI
       // if ionization is active: check if the cell is ionized
-      if (istep > NSTEP_RELAX) {
+      if (istep > NSTEP_RELAX && Cion >= 0.) {
         // as long as there is ionizing radiation left we assume cells are
         // ionized
-        if (Cion > 0.) {
-          const double rmin = cells[i]._midpoint - HALF_CELLSIZE;
-          const double rmax = cells[i]._midpoint + HALF_CELLSIZE;
-          const double Vshell = (rmax * rmax * rmax - rmin * rmin * rmin) / 3.;
-          const double Cshell = Vshell * cells[i]._rho * cells[i]._rho;
-          const double nfac = std::min(1., Cshell / Cion);
-          const double ifac = 1. - nfac;
-          cells[i]._P = ISOTHERMAL_C * cells[i]._rho * (10. * ifac + nfac);
-          // subtract this shell's ionization budget from the total
-          Cion -= ifac * Cshell;
-          cells[i]._nfac = nfac;
+        const double rmin = cells[i]._midpoint - HALF_CELLSIZE;
+        const double rmax = cells[i]._midpoint + HALF_CELLSIZE;
+        const double Vshell = (rmax * rmax * rmax - rmin * rmin * rmin) / 3.;
+        const double Cshell = Vshell * cells[i]._rho * cells[i]._rho;
+        const double ifac = std::min(1., Cion / Cshell);
+        if (ifac < 1.) {
+          if (ifac > 0.) {
+            const double nfac = 1. - ifac;
+            rion = ifac * rmax + nfac * rmin;
+          }
         } else {
-          cells[i]._P = ISOTHERMAL_C * cells[i]._rho;
+          rion = rmax;
         }
-      } else {
-        cells[i]._P = ISOTHERMAL_C * cells[i]._rho;
+        // subtract this shell's ionization budget from the total
+        Cion -= ifac * Cshell;
       }
 #endif
     }
+#if EOS == EOS_BONDI
+    for (unsigned int i = 1; i < NCELL + 1; ++i) {
+      cells[i]._nfac = get_neutral_fraction(cells[i]._midpoint, rion);
+    }
+    for (unsigned int i = 1; i < NCELL + 1; ++i) {
+      const double nfac = cells[i]._nfac;
+      const double ifac = 1. - nfac;
+      cells[i]._P = ISOTHERMAL_C_SQUARED * cells[i]._rho * (100. * ifac + nfac);
+    }
+#endif
 
     // check if we need to output a snapshot
     if (istep % SNAPSTEP == 0) {
@@ -429,7 +573,7 @@ int main(int argc, char **argv) {
     if (istep < NSTEP_RELAX) {
       cells[0]._P = bondi_pressure(r_inv_low);
     } else {
-      cells[0]._P = 10. * bondi_pressure(r_inv_low);
+      cells[0]._P = 100. * bondi_pressure(r_inv_low);
     }
 
     const double r_inv_high = 0.9 / cells[NCELL + 1]._midpoint;
@@ -439,14 +583,14 @@ int main(int argc, char **argv) {
 #elif BOUNDARIES == BOUNDARIES_OPEN
     cells[0]._rho = cells[1]._rho;
     cells[0]._u = cells[1]._u;
-    cells[0]._P = ISOTHERMAL_C * cells[1]._rho;
+    cells[0]._P = ISOTHERMAL_C_SQUARED * cells[1]._rho;
     cells[NCELL + 1]._rho = cells[NCELL]._rho;
     cells[NCELL + 1]._u = cells[NCELL]._u;
-    cells[NCELL + 1]._P = ISOTHERMAL_C * cells[NCELL + 1]._rho;
+    cells[NCELL + 1]._P = ISOTHERMAL_C_SQUARED * cells[NCELL + 1]._rho;
 #elif BOUNDARIES == BOUNDARIES_REFLECTIVE
     cells[0]._rho = cells[1]._rho;
     cells[0]._u = -cells[1]._u;
-    cells[0]._P = ISOTHERMAL_C * cells[1]._rho;
+    cells[0]._P = ISOTHERMAL_C_SQUARED * cells[1]._rho;
     cells[NCELL + 1]._rho = cells[NCELL]._rho;
     cells[NCELL + 1]._u = -cells[NCELL]._u;
     cells[NCELL + 1]._P = cells[NCELL]._P;
@@ -505,7 +649,7 @@ int main(int argc, char **argv) {
       if (istep < NSTEP_RELAX) {
         Pmin = cells[0]._P - bondi_pressure(rmin_inv);
       } else {
-        Pmin = cells[0]._P - 10. * bondi_pressure(rmin_inv);
+        Pmin = cells[0]._P - 100. * bondi_pressure(rmin_inv);
       }
       Pplu = cells[0]._P - cells[1]._P;
       if (std::abs(rhomin) < std::abs(rhoplu)) {
