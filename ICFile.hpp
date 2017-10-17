@@ -36,7 +36,7 @@
 inline static void initialize(Cell cells[NCELL + 2]) {
 
   // open the initial condition file
-  std::ifstream icfile("ic.dat");
+  std::ifstream icfile(IC_FILE_NAME);
 
   // initialize the cells (we don't initialize the ghost cells)
   for (unsigned int i = 1; i < NCELL + 1; ++i) {

@@ -17,10 +17,14 @@
  ******************************************************************************/
 
 #include "Bondi.hpp"
+#include "Boundaries.hpp"
 #include "Cell.hpp"
+#include "EOS.hpp"
 #include "IC.hpp"
+#include "Potential.hpp"
 #include "RiemannSolver.hpp"
 #include "SafeParameters.hpp"
+#include "Spherical.hpp"
 #include "Units.hpp"
 
 // standard libraries
@@ -29,6 +33,15 @@
 #include <iostream>
 #include <sstream>
 
+/**
+ * @brief Get the neutral fraction for the cell with the given midpoint radius.
+ *
+ * Old version that contains a strong jump from ionized to neutral.
+ *
+ * @param r Radius of the midpoint of the cell (in internal units of L).
+ * @param rion Ionization radius (in internal units of L).
+ * @return Neutral fraction within the cell.
+ */
 double get_neutral_fraction2(double r, double rion) {
   const double rmax = r + HALF_CELLSIZE;
   if (rion > rmax) {
@@ -43,6 +56,15 @@ double get_neutral_fraction2(double r, double rion) {
   }
 }
 
+/**
+ * @brief Get the neutral fraction for the cell with the given midpoint radius.
+ *
+ * New version that contains a linear transition from ionized to neutral.
+ *
+ * @param r Radius of the midpoint of the cell (in internal units of L).
+ * @param rion Ionization radius (in internal units of L).
+ * @return Neutral fraction within the cell.
+ */
 double get_neutral_fraction(double r, double rion) {
   const double rmin = r - HALF_CELLSIZE;
   const double rmax = r + HALF_CELLSIZE;
@@ -181,11 +203,8 @@ int main(int argc, char **argv) {
 
   // convert primitive variables to conserved variables
   for (unsigned int i = 1; i < NCELL + 1; ++i) {
-#if EOS == EOS_ISOTHERMAL
-    // if an isothermal equation of state is used, the pressure is a function of
-    // the density, and the initial condition is overwritten
-    cells[i]._P = ISOTHERMAL_C_SQUARED * cells[i]._rho;
-#endif
+    // apply the equation of state to get the initial pressure (if necessary)
+    initial_pressure(cells[i]);
 
     // use the cell volume to convert primitive into conserved variables
     cells[i]._m = cells[i]._rho * cells[i]._V;
@@ -200,101 +219,20 @@ int main(int argc, char **argv) {
   // main simulation loop: perform NSTEP steps
   for (unsigned int istep = 0; istep < NSTEP; ++istep) {
 
-    // add spherical source term (see Toro, 2009, chapter 17)
-    // we use a second order Runge-Kutta step and apply an operator splitting
-    // method to couple the source term to the hydro step
-    for (unsigned int i = 1; i < NCELL + 1; ++i) {
-      const double r = cells[i]._midpoint;
-      const double Ui[3] = {cells[i]._m / cells[i]._V,
-                            cells[i]._p / cells[i]._V,
-                            cells[i]._E / cells[i]._V};
-      double K1[3];
-      K1[0] = -DT * Ui[1] / r;
-      K1[1] = -DT * Ui[1] * Ui[1] / Ui[0] / r;
-      const double p1 = (GAMMA - 1.) * (Ui[2] - 0.5 * Ui[1] * Ui[1] / Ui[0]);
-      K1[2] = -DT * Ui[1] * (Ui[2] + p1) / Ui[0] / r;
-      double U[3] = {Ui[0] + K1[0], Ui[1] + K1[1], Ui[2] + K1[2]};
-      double K2[3];
-      K2[0] = -DT * U[1] / r;
-      K2[1] = -DT * U[1] * U[1] / U[0] / r;
-      const double p2 = (GAMMA - 1.) * (U[2] - 0.5 * U[1] * U[1] / U[0]);
-      K2[2] = -DT * U[1] * (U[2] + p2) / U[0] / r;
-      U[0] = Ui[0] + 0.5 * (K1[0] + K2[0]);
-      U[1] = Ui[1] + 0.5 * (K1[1] + K2[1]);
-      U[2] = Ui[2] + 0.5 * (K1[2] + K2[2]);
+    add_spherical_source_term();
 
-      cells[i]._m = U[0] * cells[i]._V;
-      cells[i]._p = U[1] * cells[i]._V;
-      cells[i]._E = U[2] * cells[i]._V;
-    }
+    // do first gravity kick
+    do_gravity();
 
-#if POTENTIAL == POTENTIAL_POINT_MASS
-    // add gravitational acceleration
-    for (unsigned int i = 1; i < NCELL + 1; ++i) {
-      const double r = cells[i]._midpoint;
-      const double a = -G * MASS_POINT_MASS / (r * r);
-      cells[i]._a = a;
-      const double m = cells[i]._V * cells[i]._rho;
-      cells[i]._p += 0.5 * DT * a * m;
-      // we do not update the total energy, as we only run gravity simulations
-      // with an isothermal eos, in which case the total energy is ignored by
-      // the hydro scheme
-    }
-#endif
-
-#if EOS == EOS_BONDI
-    // total ionizing budget of the central source
-    // every shell will absorb a fraction of this budget until the ionization
-    // radius is reached
-    double Cion =
-        5. * std::pow(0.9, 2.4) / 3. *
-        (std::pow(INITIAL_IONIZATION_RADIUS, 0.6) - std::pow(0.1, 0.6));
-    double rion = 0.;
-#endif
+    before_primitive_variable_conversion();
     // update the primitive variables based on the values of the conserved
     // variables and the current cell volume
     for (unsigned int i = 1; i < NCELL + 1; ++i) {
       cells[i]._rho = cells[i]._m / cells[i]._V;
       cells[i]._u = cells[i]._p / cells[i]._m;
-#if EOS == EOS_IDEAL
-      cells[i]._P =
-          (GAMMA - 1.) * (cells[i]._E / cells[i]._V -
-                          0.5 * cells[i]._rho * cells[i]._u * cells[i]._u);
-#elif EOS == EOS_ISOTHERMAL
-      cells[i]._P = ISOTHERMAL_C_SQUARED * cells[i]._rho;
-#elif EOS == EOS_BONDI
-      // if ionization is active: check if the cell is ionized
-      if (istep > NSTEP_RELAX && Cion >= 0.) {
-        // as long as there is ionizing radiation left we assume cells are
-        // ionized
-        const double rmin = cells[i]._midpoint - HALF_CELLSIZE;
-        const double rmax = cells[i]._midpoint + HALF_CELLSIZE;
-        const double Vshell = (rmax * rmax * rmax - rmin * rmin * rmin) / 3.;
-        const double Cshell = Vshell * cells[i]._rho * cells[i]._rho;
-        const double ifac = std::min(1., Cion / Cshell);
-        if (ifac < 1.) {
-          if (ifac > 0.) {
-            const double nfac = 1. - ifac;
-            rion = ifac * rmax + nfac * rmin;
-          }
-        } else {
-          rion = rmax;
-        }
-        // subtract this shell's ionization budget from the total
-        Cion -= ifac * Cshell;
-      }
-#endif
+      update_pressure(cells[i]);
     }
-#if EOS == EOS_BONDI
-    for (unsigned int i = 1; i < NCELL + 1; ++i) {
-      cells[i]._nfac = get_neutral_fraction(cells[i]._midpoint, rion);
-    }
-    for (unsigned int i = 1; i < NCELL + 1; ++i) {
-      const double nfac = cells[i]._nfac;
-      const double ifac = 1. - nfac;
-      cells[i]._P = ISOTHERMAL_C_SQUARED * cells[i]._rho * (100. * ifac + nfac);
-    }
-#endif
+    after_primitive_variable_conversion();
 
     // check if we need to output a snapshot
     if (istep % SNAPSTEP == 0) {
@@ -302,37 +240,8 @@ int main(int argc, char **argv) {
       write_snapshot(istep, cells);
     }
 
-// apply boundary conditions
-#if BOUNDARIES == BOUNDARIES_BONDI
-    // impose the Bondi solution at the boundaries
-    const double r_inv_low = 0.9 / cells[0]._midpoint;
-    cells[0]._rho = bondi_density(r_inv_low);
-    cells[0]._u = bondi_velocity(r_inv_low);
-    if (istep < NSTEP_RELAX) {
-      cells[0]._P = bondi_pressure(r_inv_low);
-    } else {
-      cells[0]._P = 100. * bondi_pressure(r_inv_low);
-    }
-
-    const double r_inv_high = 0.9 / cells[NCELL + 1]._midpoint;
-    cells[NCELL + 1]._rho = bondi_density(r_inv_high);
-    cells[NCELL + 1]._u = bondi_velocity(r_inv_high);
-    cells[NCELL + 1]._P = bondi_pressure(r_inv_high);
-#elif BOUNDARIES == BOUNDARIES_OPEN
-    cells[0]._rho = cells[1]._rho;
-    cells[0]._u = cells[1]._u;
-    cells[0]._P = ISOTHERMAL_C_SQUARED * cells[1]._rho;
-    cells[NCELL + 1]._rho = cells[NCELL]._rho;
-    cells[NCELL + 1]._u = cells[NCELL]._u;
-    cells[NCELL + 1]._P = ISOTHERMAL_C_SQUARED * cells[NCELL + 1]._rho;
-#elif BOUNDARIES == BOUNDARIES_REFLECTIVE
-    cells[0]._rho = cells[1]._rho;
-    cells[0]._u = -cells[1]._u;
-    cells[0]._P = ISOTHERMAL_C_SQUARED * cells[1]._rho;
-    cells[NCELL + 1]._rho = cells[NCELL]._rho;
-    cells[NCELL + 1]._u = -cells[NCELL]._u;
-    cells[NCELL + 1]._P = cells[NCELL]._P;
-#endif
+    // apply boundary conditions
+    boundary_conditions_primitive_variables();
 
     // compute slope limited gradients for the primitive variables in each cell
     for (unsigned int i = 1; i < NCELL + 1; ++i) {
@@ -362,89 +271,8 @@ int main(int argc, char **argv) {
       }
     }
 
-// apply boundary conditions
-#if BOUNDARIES == BOUNDARIES_OPEN
-    cells[0]._grad_rho = cells[1]._grad_rho;
-    cells[0]._grad_u = cells[1]._grad_u;
-    cells[0]._grad_P = cells[1]._grad_P;
-    cells[NCELL + 1]._grad_rho = cells[NCELL + 1]._grad_rho;
-    cells[NCELL + 1]._grad_u = cells[NCELL + 1]._grad_u;
-    cells[NCELL + 1]._grad_P = cells[NCELL + 1]._grad_P;
-#elif BOUNDARIES == BOUNDARIES_BONDI
-    // compute the exact value of the gradient for the bondi solution
-    const double rmin = cells[0]._midpoint - CELLSIZE;
-    const double rmax = cells[NCELL + 1]._midpoint + CELLSIZE;
-    const double rmin_inv = 1. / rmin;
-    const double rmax_inv = 1. / rmax;
-
-    // lower boundary
-    {
-      double rhomin, rhoplu, umin, uplu, Pmin, Pplu, dmin, dplu;
-      rhomin = cells[0]._rho - bondi_density(rmin_inv);
-      rhoplu = cells[0]._rho - cells[1]._rho;
-      umin = cells[0]._u - bondi_velocity(rmin_inv);
-      uplu = cells[0]._u - cells[1]._u;
-      if (istep < NSTEP_RELAX) {
-        Pmin = cells[0]._P - bondi_pressure(rmin_inv);
-      } else {
-        Pmin = cells[0]._P - 100. * bondi_pressure(rmin_inv);
-      }
-      Pplu = cells[0]._P - cells[1]._P;
-      if (std::abs(rhomin) < std::abs(rhoplu)) {
-        cells[0]._grad_rho = rhomin / CELLSIZE;
-      } else {
-        cells[0]._grad_rho = rhoplu / CELLSIZE;
-      }
-      if (std::abs(umin) < std::abs(uplu)) {
-        cells[0]._grad_u = umin / CELLSIZE;
-      } else {
-        cells[0]._grad_u = uplu / CELLSIZE;
-      }
-      if (std::abs(Pmin) < std::abs(Pplu)) {
-        cells[0]._grad_P = Pmin / CELLSIZE;
-      } else {
-        cells[0]._grad_P = Pplu / CELLSIZE;
-      }
-    }
-
-    // upper boundary
-    {
-      double rhomin, rhoplu, umin, uplu, Pmin, Pplu, dmin, dplu;
-      rhomin = cells[NCELL + 1]._rho - cells[NCELL]._rho;
-      rhoplu = cells[NCELL + 1]._rho - bondi_density(rmax_inv);
-      umin = cells[NCELL + 1]._u - cells[NCELL]._u;
-      uplu = cells[NCELL + 1]._u - bondi_velocity(rmax_inv);
-      Pmin = cells[NCELL + 1]._P - cells[NCELL]._P;
-      Pplu = cells[NCELL + 1]._P - bondi_pressure(rmax_inv);
-      if (std::abs(rhomin) < std::abs(rhoplu)) {
-        cells[NCELL + 1]._grad_rho = rhomin / CELLSIZE;
-      } else {
-        cells[NCELL + 1]._grad_rho = rhoplu / CELLSIZE;
-      }
-      if (std::abs(umin) < std::abs(uplu)) {
-        cells[NCELL + 1]._grad_u = umin / CELLSIZE;
-      } else {
-        cells[NCELL + 1]._grad_u = uplu / CELLSIZE;
-      }
-      if (std::abs(Pmin) < std::abs(Pplu)) {
-        cells[NCELL + 1]._grad_P = Pmin / CELLSIZE;
-      } else {
-        cells[NCELL + 1]._grad_P = Pplu / CELLSIZE;
-      }
-    }
-#elif BOUNDARIES == BOUNDARIES_REFLECTIVE
-    cells[0]._grad_rho = cells[1]._grad_rho;
-    cells[0]._grad_u =
-        -cells[1]._grad_u - cells[1]._grad_u -
-        4. * cells[0]._u / (cells[0]._midpoint - cells[1]._midpoint);
-    cells[0]._grad_P = cells[1]._grad_P;
-    cells[NCELL + 1]._grad_rho = -cells[NCELL]._grad_rho;
-    cells[NCELL + 1]._grad_u =
-        -cells[NCELL]._grad_u -
-        4. * cells[NCELL]._u /
-            (cells[NCELL]._midpoint - cells[NCELL + 1]._midpoint);
-    cells[NCELL + 1]._grad_P = -cells[NCELL]._grad_P;
-#endif
+    // apply boundary conditions
+    boundary_conditions_gradients();
 
 #ifdef NO_GRADIENTS
     // reset all gradients to zero to disable the second order scheme
@@ -467,10 +295,7 @@ int main(int argc, char **argv) {
       cells[i]._P -=
           0.5 * DT * (GAMMA * P * cells[i]._grad_u + u * cells[i]._grad_P);
 
-#if POTENTIAL != POTENTIAL_NONE
-      // add the gravitational time step prediction
-      cells[i]._u += 0.5 * DT * cells[i]._a;
-#endif
+      add_gravitational_prediction(cells[i]);
     }
 
     // do the flux exchange
@@ -518,42 +343,10 @@ int main(int argc, char **argv) {
       rcell->_E += DT * Eflux;
     }
 
-    // add the spherical source term (see above)
-    for (unsigned int i = 1; i < NCELL + 1; ++i) {
-      const double r = cells[i]._midpoint;
-      const double Ui[3] = {cells[i]._m / cells[i]._V,
-                            cells[i]._p / cells[i]._V,
-                            cells[i]._E / cells[i]._V};
-      double K1[3];
-      K1[0] = -DT * Ui[1] / r;
-      K1[1] = -DT * Ui[1] * Ui[1] / Ui[0] / r;
-      const double p1 = (GAMMA - 1.) * (Ui[2] - 0.5 * Ui[1] * Ui[1] / Ui[0]);
-      K1[2] = -DT * Ui[1] * (Ui[2] + p1) / Ui[0] / r;
-      double U[3] = {Ui[0] + K1[0], Ui[1] + K1[1], Ui[2] + K1[2]};
-      double K2[3];
-      K2[0] = -DT * U[1] / r;
-      K2[1] = -DT * U[1] * U[1] / U[0] / r;
-      const double p2 = (GAMMA - 1.) * (U[2] - 0.5 * U[1] * U[1] / U[0]);
-      K2[2] = -DT * U[1] * (U[2] + p2) / U[0] / r;
-      U[0] = Ui[0] + 0.5 * (K1[0] + K2[0]);
-      U[1] = Ui[1] + 0.5 * (K1[1] + K2[1]);
-      U[2] = Ui[2] + 0.5 * (K1[2] + K2[2]);
+    add_spherical_source_term();
 
-      cells[i]._m = U[0] * cells[i]._V;
-      cells[i]._p = U[1] * cells[i]._V;
-      cells[i]._E = U[2] * cells[i]._V;
-    }
-
-// add gravitational acceleration (see above)
-#if POTENTIAL == POTENTIAL_POINT_MASS
-    for (unsigned int i = 1; i < NCELL + 1; ++i) {
-      const double r = cells[i]._midpoint;
-      const double a = -G * MASS_POINT_MASS / (r * r);
-      cells[i]._a = a;
-      const double m = cells[i]._V * cells[i]._rho;
-      cells[i]._p += 0.5 * DT * a * m;
-    }
-#endif
+    // do second gravity kick
+    do_gravity();
   }
 
   // write the final snapshot
