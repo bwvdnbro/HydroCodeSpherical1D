@@ -33,7 +33,7 @@
 #define BOXSIZE (RMAX - RMIN)
 /*! @brief Half the size of a single "cell" of the simulation (in internal units
  *  of L). */
-#define CELLSIZE (BOXSIZE / NCELL)
+#define CELLSIZE (BOXSIZE / ncell)
 #define HALF_CELLSIZE (0.5 * CELLSIZE)
 /*! @brief Isothermal sound speed squared (if EOS_ISOTHERMAL is selected, in
  *  internal units of L T^-1). */

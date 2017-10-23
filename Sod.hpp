@@ -31,20 +31,18 @@
  *
  * @param cells Cells to initialize.
  */
-inline static void initialize(Cell cells[NCELL + 2]) {
-
-  for (unsigned int i = 1; i < NCELL + 1; ++i) {
-    if (cells[i]._midpoint < 0.25) {
-      cells[i]._rho = 1.;
-      cells[i]._P = 1.;
-    } else {
-      cells[i]._rho = 0.125;
-      cells[i]._P = 0.1;
-    }
-    cells[i]._u = 0.;
-    cells[i]._a = 0.;
-    cells[i]._nfac = 0.;
+#define initialize(cells, ncell)                                               \
+  for (unsigned int i = 1; i < ncell + 1; ++i) {                               \
+    if (cells[i]._midpoint < 0.25) {                                           \
+      cells[i]._rho = 1.;                                                      \
+      cells[i]._P = 1.;                                                        \
+    } else {                                                                   \
+      cells[i]._rho = 0.125;                                                   \
+      cells[i]._P = 0.1;                                                       \
+    }                                                                          \
+    cells[i]._u = 0.;                                                          \
+    cells[i]._a = 0.;                                                          \
+    cells[i]._nfac = 0.;                                                       \
   }
-}
 
 #endif // SOD_HPP

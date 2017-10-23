@@ -33,7 +33,7 @@
 #define RMAX 0.475
 
 /*! @brief Number of spherical shells (1D "cells") in between RMIN and RMAX. */
-#define NCELL 2000
+#define NCELL 1000
 /*! @brief Adiabatic index. */
 #define GAMMA 1.001
 /*! @brief Fixed time step (in internal units of T). */
@@ -41,13 +41,13 @@
 /*! @brief Number of time steps. */
 #define NSTEP 200000
 /*! @brief Number of time steps between subsequent snapshot dumps. */
-#define SNAPSTEP 20000
+#define SNAPSTEP 200
 
 /*! @brief Number of time steps before switching on ionization. */
-#define NSTEP_RELAX 200000
+#define NSTEP_RELAX 0
 
 /*! @brief Width of the ionization transition region. */
-#define IONIZATION_TRANSITION_WIDTH 0.05
+#define IONIZATION_TRANSITION_WIDTH (1.5 * 0.05)
 
 /*! @brief Choice of boundary conditions. */
 #define BOUNDARIES BOUNDARIES_BONDI
@@ -77,10 +77,10 @@
 //#define NO_GRADIENTS
 
 /*! @brief Choice of initial conditions. */
-#define IC IC_BONDI
+#define IC IC_FILE
 
 /*! @brief Name of the initial condition file (if IC_FILE is selected). */
-#define IC_FILE_NAME ic.dat
+#define IC_FILE_NAME "ic_1000.dat"
 
 /*! @brief Approximate initial ionization radius (in internal units of L). */
 #define INITIAL_IONIZATION_RADIUS 0.3

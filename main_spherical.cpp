@@ -38,16 +38,18 @@
  *
  * Old version that contains a strong jump from ionized to neutral.
  *
- * @param r Radius of the midpoint of the cell (in internal units of L).
+ * @param rmin Radius of the lower wall of the cell (in internal units of L).
+ * @param rmax Radius of the upper wall of the cell (in internal units of L).
  * @param rion Ionization radius (in internal units of L).
+ * @param transition_width Width of the transition region (in internal units of
+ * L).
  * @return Neutral fraction within the cell.
  */
-double get_neutral_fraction2(double r, double rion) {
-  const double rmax = r + HALF_CELLSIZE;
+double get_neutral_fraction2(double rmin, double rmax, double rion,
+                             double transition_width) {
   if (rion > rmax) {
     return 0.;
   } else {
-    const double rmin = r - HALF_CELLSIZE;
     if (rion < rmin) {
       return 1.;
     } else {
@@ -61,16 +63,23 @@ double get_neutral_fraction2(double r, double rion) {
  *
  * New version that contains a linear transition from ionized to neutral.
  *
- * @param r Radius of the midpoint of the cell (in internal units of L).
+ * @param rmin Radius of the lower wall of the cell (in internal units of L).
+ * @param rmax Radius of the upper wall of the cell (in internal units of L).
  * @param rion Ionization radius (in internal units of L).
+ * @param transition_width Width of the transition region (in internal units of
+ * L).
  * @return Neutral fraction within the cell.
  */
-double get_neutral_fraction(double r, double rion) {
-  const double rmin = r - HALF_CELLSIZE;
-  const double rmax = r + HALF_CELLSIZE;
-  const double rion_min = rion - 0.5 * IONIZATION_TRANSITION_WIDTH;
-  const double rion_max = rion + 0.5 * IONIZATION_TRANSITION_WIDTH;
-  const double slope = 1. / (rion_max - rion_min);
+double get_neutral_fraction3(double rmin, double rmax, double rion,
+                             double transition_width) {
+  const double rion_min = rion - 0.5 * transition_width;
+  const double rion_max = rion + 0.5 * transition_width;
+  double slope;
+  if (rion_max - rion_min > 0.) {
+    slope = 1. / (rion_max - rion_min);
+  } else {
+    slope = 0.;
+  }
   // Note: we assume rmax - rmin << rion_max - rion_min
   if (rmax < rion_min) {
     return 0.;
@@ -89,13 +98,69 @@ double get_neutral_fraction(double r, double rion) {
   }
 }
 
+double get_neutral_fraction_integral(double A, double S, double rion,
+                                     double rmin, double rmax) {
+  const double rmaxrel = rmax - rion;
+  const double rminrel = rmin - rion;
+  const double rdiff = rmax - rmin;
+  const double rmaxrel2 = rmaxrel * rmaxrel;
+  const double rmaxrel4 = rmaxrel2 * rmaxrel2;
+  const double rminrel2 = rminrel * rminrel;
+  const double rminrel4 = rminrel2 * rminrel2;
+  return 0.25 * A * (rmaxrel4 - rminrel4) + 0.5 * S * (rmaxrel2 - rminrel2) +
+         0.5 * rdiff;
+}
+
+/**
+ * @brief Get the neutral fraction for the cell with the given midpoint radius.
+ *
+ * New version that contains a linear transition from ionized to neutral.
+ *
+ * @param rmin Radius of the lower wall of the cell (in internal units of L).
+ * @param rmax Radius of the upper wall of the cell (in internal units of L).
+ * @param rion Ionization radius (in internal units of L).
+ * @param transition_width Width of the transition region (in internal units of
+ * L).
+ * @return Neutral fraction within the cell.
+ */
+double get_neutral_fraction(double rmin, double rmax, double rion,
+                            double transition_width) {
+  const double rion_min = rion - 0.5 * transition_width;
+  const double rion_max = rion + 0.5 * transition_width;
+  double S, A;
+  if (transition_width > 0.) {
+    S = 3. / (2. * transition_width);
+    A = -16. * S * S * S / 27.;
+  } else {
+    S = 0.;
+    A = 0.;
+  }
+  // Note: we assume rmax - rmin << rion_max - rion_min
+  if (rmax < rion_min) {
+    return 0.;
+  } else if (rmin < rion_min && rmax > rion_min) {
+    return get_neutral_fraction_integral(A, S, rion, rion_min, rmax) /
+           (rmax - rmin);
+  } else if (rmin > rion_min && rmax < rion_max) {
+    return get_neutral_fraction_integral(A, S, rion, rmin, rmax) /
+           (rmax - rmin);
+  } else if (rmin < rion_max && rmax > rion_max) {
+    return (get_neutral_fraction_integral(A, S, rion, rmin, rion_max) +
+            (rmax - rion_max)) /
+           (rmax - rmin);
+  } else {
+    return 1.;
+  }
+}
+
 /**
  * @brief Write a snapshot with the given index.
  *
  * @param istep Index of the snapshot file.
  * @param cells Cells to write.
  */
-void write_snapshot(unsigned int istep, const Cell cells[NCELL + 2]) {
+void write_snapshot(unsigned int istep, const Cell *cells,
+                    const unsigned int ncell) {
   std::stringstream filename;
   filename << "snapshot_";
   filename.fill('0');
@@ -104,7 +169,7 @@ void write_snapshot(unsigned int istep, const Cell cells[NCELL + 2]) {
   filename << ".txt";
   std::ofstream ofile(filename.str().c_str());
   ofile << "# time: " << istep * DT * UNIT_TIME_IN_SI << "\n";
-  for (unsigned int i = 1; i < NCELL + 1; ++i) {
+  for (unsigned int i = 1; i < ncell + 1; ++i) {
     ofile << cells[i]._midpoint * UNIT_LENGTH_IN_SI << "\t"
           << cells[i]._rho * UNIT_DENSITY_IN_SI << "\t"
           << cells[i]._u * UNIT_VELOCITY_IN_SI << "\t"
@@ -119,9 +184,9 @@ void write_snapshot(unsigned int istep, const Cell cells[NCELL + 2]) {
  *
  * @param Cells to write.
  */
-void write_binary_snapshot(const Cell cells[NCELL + 2]) {
+void write_binary_snapshot(const Cell *cells, const unsigned int ncell) {
   std::ofstream ofile("lastsnap.dat");
-  for (unsigned int i = 1; i < NCELL + 1; ++i) {
+  for (unsigned int i = 1; i < ncell + 1; ++i) {
     ofile.write(reinterpret_cast<const char *>(&cells[i]._rho), sizeof(double));
     ofile.write(reinterpret_cast<const char *>(&cells[i]._u), sizeof(double));
     ofile.write(reinterpret_cast<const char *>(&cells[i]._P), sizeof(double));
@@ -138,11 +203,27 @@ void write_binary_snapshot(const Cell cells[NCELL + 2]) {
  */
 int main(int argc, char **argv) {
 
+  unsigned int ncell = NCELL;
+  std::string ic_file_name(IC_FILE_NAME);
+  double transition_width = IONIZATION_TRANSITION_WIDTH;
+
+  if (argc > 1) {
+    ncell = atoi(argv[1]);
+  }
+  if (argc > 2) {
+    ic_file_name = argv[2];
+  }
+  if (argc > 3) {
+    transition_width = atof(argv[3]);
+  }
+
   //  for(unsigned int i = 0; i < 1000; ++i){
   //    const double x = 0.2 + 0.001 * 0.2 * i;
   //    std::cout << x << "\t" << get_neutral_fraction(x, 0.3) << std::endl;
   //  }
   //  return 0;
+  std::cout << "Slope: " << (1.5 / transition_width) / UNIT_LENGTH_IN_SI
+            << std::endl;
 
   std::cout << "UNIT_LENGTH_IN_SI: " << UNIT_LENGTH_IN_SI << std::endl;
   std::cout << "UNIT_MASS_IN_SI: " << UNIT_MASS_IN_SI << std::endl;
@@ -185,24 +266,24 @@ int main(int argc, char **argv) {
   // create the 1D spherical grid
   // we create 2 ghost cells to the left and to the right of the simulation box
   // to handle boundary conditions
-  Cell cells[NCELL + 2];
-  for (unsigned int i = 0; i < NCELL + 2; ++i) {
-    cells[i]._midpoint = RMIN + (i - 0.5) * BOXSIZE / NCELL;
-    cells[i]._V = BOXSIZE / NCELL;
-    const double xmin = RMIN + (i - 1.) * BOXSIZE / NCELL;
-    const double xmax = RMIN + i * BOXSIZE / NCELL;
+  Cell *cells = new Cell[ncell + 2];
+  for (unsigned int i = 0; i < ncell + 2; ++i) {
+    cells[i]._midpoint = RMIN + (i - 0.5) * BOXSIZE / ncell;
+    cells[i]._V = BOXSIZE / ncell;
+    const double xmin = RMIN + (i - 1.) * BOXSIZE / ncell;
+    const double xmax = RMIN + i * BOXSIZE / ncell;
     cells[i]._Vreal =
         4. * M_PI * (xmax * xmax * xmax - xmin * xmin * xmin) / 3.;
-    if (i < NCELL + 1) {
+    if (i < ncell + 1) {
       cells[i]._right_ngb = &cells[i + 1];
     }
   }
 
   // set up the initial condition
-  initialize(cells);
+  initialize(cells, ncell);
 
   // convert primitive variables to conserved variables
-  for (unsigned int i = 1; i < NCELL + 1; ++i) {
+  for (unsigned int i = 1; i < ncell + 1; ++i) {
     // apply the equation of state to get the initial pressure (if necessary)
     initial_pressure(cells[i]);
 
@@ -227,48 +308,78 @@ int main(int argc, char **argv) {
     before_primitive_variable_conversion();
     // update the primitive variables based on the values of the conserved
     // variables and the current cell volume
-    for (unsigned int i = 1; i < NCELL + 1; ++i) {
+    for (unsigned int i = 1; i < ncell + 1; ++i) {
       cells[i]._rho = cells[i]._m / cells[i]._V;
       cells[i]._u = cells[i]._p / cells[i]._m;
       update_pressure(cells[i]);
     }
     after_primitive_variable_conversion();
 
+    double maxcs = 0.;
+    for (unsigned int i = 1; i < ncell + 1; ++i) {
+      const double cs = std::sqrt(GAMMA * cells[i]._P / cells[i]._rho) +
+                        std::abs(cells[i]._u);
+      maxcs = std::max(maxcs, cs);
+    }
+    const double maxdt = 0.5 * CELLSIZE / maxcs;
+    if (maxdt < DT) {
+      std::cout << "Time step too large: " << maxdt << " < " << DT << "!"
+                << std::endl;
+      return 1;
+    }
+
     // check if we need to output a snapshot
     if (istep % SNAPSTEP == 0) {
-      std::cout << "step " << istep << " of " << NSTEP << std::endl;
-      write_snapshot(istep, cells);
+      const double pct = istep * 100. / NSTEP;
+      std::cout << "step " << istep << " of " << NSTEP << " (" << pct << " %)"
+                << std::endl;
+      std::cout << "Maximal system time step: " << maxdt << std::endl;
+      write_snapshot(istep, cells, ncell);
     }
 
     // apply boundary conditions
     boundary_conditions_primitive_variables();
 
     // compute slope limited gradients for the primitive variables in each cell
-    for (unsigned int i = 1; i < NCELL + 1; ++i) {
-      double rhomin, rhoplu, umin, uplu, Pmin, Pplu, dmin, dplu;
-      rhomin = cells[i]._rho - cells[i - 1]._rho;
-      rhoplu = cells[i]._rho - cells[i + 1]._rho;
-      umin = cells[i]._u - cells[i - 1]._u;
-      uplu = cells[i]._u - cells[i + 1]._u;
-      Pmin = cells[i]._P - cells[i - 1]._P;
-      Pplu = cells[i]._P - cells[i + 1]._P;
-      dmin = cells[i]._midpoint - cells[i - 1]._midpoint;
-      dplu = cells[i]._midpoint - cells[i + 1]._midpoint;
-      if (std::abs(rhomin * dplu) < std::abs(rhoplu * dmin)) {
-        cells[i]._grad_rho = rhomin / dmin;
-      } else {
-        cells[i]._grad_rho = rhoplu / dplu;
-      }
-      if (std::abs(umin * dplu) < std::abs(uplu * dmin)) {
-        cells[i]._grad_u = umin / dmin;
-      } else {
-        cells[i]._grad_u = uplu / dplu;
-      }
-      if (std::abs(Pmin * dplu) < std::abs(Pplu * dmin)) {
-        cells[i]._grad_P = Pmin / dmin;
-      } else {
-        cells[i]._grad_P = Pplu / dplu;
-      }
+    for (unsigned int i = 1; i < ncell + 1; ++i) {
+      const double dx = cells[i + 1]._midpoint - cells[i - 1]._midpoint;
+      const double dx_inv = 1. / dx;
+
+      const double gradrho = (cells[i + 1]._rho - cells[i - 1]._rho) * dx_inv;
+      const double rhomax = std::max(cells[i - 1]._rho, cells[i + 1]._rho);
+      const double rhomin = std::min(cells[i - 1]._rho, cells[i + 1]._rho);
+      const double rho_ext_plu = HALF_CELLSIZE * gradrho;
+      const double rho_ext_min = -HALF_CELLSIZE * gradrho;
+      const double rhoextmax = std::max(rho_ext_min, rho_ext_plu);
+      const double rhoextmin = std::min(rho_ext_min, rho_ext_plu);
+      const double alpha_rho =
+          std::min(1., 0.5 * std::min((rhomax - cells[i]._rho) / rhoextmax,
+                                      (rhomin - cells[i]._rho) / rhoextmin));
+      cells[i]._grad_rho = alpha_rho * gradrho;
+
+      const double gradu = (cells[i + 1]._u - cells[i - 1]._u) * dx_inv;
+      const double umax = std::max(cells[i - 1]._u, cells[i + 1]._u);
+      const double umin = std::min(cells[i - 1]._u, cells[i + 1]._u);
+      const double u_ext_plu = HALF_CELLSIZE * gradu;
+      const double u_ext_min = -HALF_CELLSIZE * gradu;
+      const double uextmax = std::max(u_ext_min, u_ext_plu);
+      const double uextmin = std::min(u_ext_min, u_ext_plu);
+      const double alpha_u =
+          std::min(1., 0.5 * std::min((umax - cells[i]._u) / uextmax,
+                                      (umin - cells[i]._u) / uextmin));
+      cells[i]._grad_u = alpha_u * gradu;
+
+      const double gradP = (cells[i + 1]._P - cells[i - 1]._P) * dx_inv;
+      const double Pmax = std::max(cells[i - 1]._P, cells[i + 1]._P);
+      const double Pmin = std::min(cells[i - 1]._P, cells[i + 1]._P);
+      const double P_ext_plu = HALF_CELLSIZE * gradP;
+      const double P_ext_min = -HALF_CELLSIZE * gradP;
+      const double Pextmax = std::max(P_ext_min, P_ext_plu);
+      const double Pextmin = std::min(P_ext_min, P_ext_plu);
+      const double alpha_P =
+          std::min(1., 0.5 * std::min((Pmax - cells[i]._P) / Pextmax,
+                                      (Pmin - cells[i]._P) / Pextmin));
+      cells[i]._grad_P = alpha_P * gradP;
     }
 
     // apply boundary conditions
@@ -276,7 +387,7 @@ int main(int argc, char **argv) {
 
 #ifdef NO_GRADIENTS
     // reset all gradients to zero to disable the second order scheme
-    for (unsigned int i = 0; i < NCELL + 2; ++i) {
+    for (unsigned int i = 0; i < ncell + 2; ++i) {
       cells[i]._grad_rho = 0.;
       cells[i]._grad_u = 0.;
       cells[i]._grad_P = 0.;
@@ -285,7 +396,7 @@ int main(int argc, char **argv) {
 
     // evolve all primitive variables forward in time for half a time step
     // using the Euler equations and the spatial gradients within the cells
-    for (unsigned int i = 0; i < NCELL + 2; ++i) {
+    for (unsigned int i = 0; i < ncell + 2; ++i) {
       const double rho = cells[i]._rho;
       const double u = cells[i]._u;
       const double P = cells[i]._P;
@@ -295,13 +406,20 @@ int main(int argc, char **argv) {
       cells[i]._P -=
           0.5 * DT * (GAMMA * P * cells[i]._grad_u + u * cells[i]._grad_P);
 
+      if (cells[i]._rho < 0.) {
+        cells[i]._rho = rho;
+      }
+      if (cells[i]._P < 0.) {
+        cells[i]._P = P;
+      }
+
       add_gravitational_prediction(cells[i]);
     }
 
     // do the flux exchange
     // we always do the flux for the right face of the cell, which means we
     // start from the left ghost and do not include the right ghost
-    for (unsigned int i = 0; i < NCELL + 1; ++i) {
+    for (unsigned int i = 0; i < ncell + 1; ++i) {
       // get the variables in the left and right state
       double rhoL, uL, PL, rhoR, uR, PR;
       rhoL = cells[i]._rho;
@@ -323,6 +441,19 @@ int main(int argc, char **argv) {
       rhoR_dash = rhoR + dplu * rcell->_grad_rho;
       uR_dash = uR + dplu * rcell->_grad_u;
       PR_dash = PR + dplu * rcell->_grad_P;
+
+      if (rhoL_dash < 0.) {
+        rhoL_dash = rhoL;
+      }
+      if (rhoR_dash < 0.) {
+        rhoR_dash = rhoR;
+      }
+      if (PL_dash < 0.) {
+        PL_dash = PL;
+      }
+      if (PR_dash < 0.) {
+        PR_dash = PR;
+      }
 
       // solve the Riemann problem across the cell face
       double rhosol, usol, Psol;
@@ -350,8 +481,10 @@ int main(int argc, char **argv) {
   }
 
   // write the final snapshot
-  write_snapshot(NSTEP, cells);
-  write_binary_snapshot(cells);
+  write_snapshot(NSTEP, cells, ncell);
+  write_binary_snapshot(cells, ncell);
+
+  delete[] cells;
 
   // all went well: return with exit code 0
   return 0;

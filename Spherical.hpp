@@ -34,7 +34,7 @@
  * to couple the source term to the hydro step.
  */
 #define add_spherical_source_term()                                            \
-  for (unsigned int i = 1; i < NCELL + 1; ++i) {                               \
+  for (unsigned int i = 1; i < ncell + 1; ++i) {                               \
     const double r = cells[i]._midpoint;                                       \
     const double Ui[3] = {cells[i]._m / cells[i]._V,                           \
                           cells[i]._p / cells[i]._V,                           \

@@ -32,7 +32,7 @@
 #if POTENTIAL == POTENTIAL_POINT_MASS
 #define do_gravity()                                                           \
   /* add gravitational acceleration */                                         \
-  for (unsigned int i = 1; i < NCELL + 1; ++i) {                               \
+  for (unsigned int i = 1; i < ncell + 1; ++i) {                               \
     const double r = cells[i]._midpoint;                                       \
     const double a = -G * MASS_POINT_MASS / (r * r);                           \
     cells[i]._a = a;                                                           \

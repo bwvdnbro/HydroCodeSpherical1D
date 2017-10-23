@@ -33,22 +33,24 @@
  *
  * @param cells Cells to initialize.
  */
-inline static void initialize(Cell cells[NCELL + 2]) {
-
-  // open the initial condition file
-  std::ifstream icfile(IC_FILE_NAME);
-
-  // initialize the cells (we don't initialize the ghost cells)
-  for (unsigned int i = 1; i < NCELL + 1; ++i) {
-    // read the primitive variables from the initial condition file
-    icfile.read(reinterpret_cast<char *>(&cells[i]._rho), sizeof(double));
-    icfile.read(reinterpret_cast<char *>(&cells[i]._u), sizeof(double));
-    icfile.read(reinterpret_cast<char *>(&cells[i]._P), sizeof(double));
-    icfile.read(reinterpret_cast<char *>(&cells[i]._a), sizeof(double));
-  }
-
-  // close the initial condition file
+#define initialize(cells, ncell)                                               \
+  /* open the initial condition file */                                        \
+  std::ifstream icfile(ic_file_name.c_str());                                  \
+  if (!icfile.good()) {                                                        \
+    std::cerr << "Initial condition file not found!" << std::endl;             \
+    return 1;                                                                  \
+  }                                                                            \
+                                                                               \
+  /* initialize the cells (we don't initialize the ghost cells) */             \
+  for (unsigned int i = 1; i < ncell + 1; ++i) {                               \
+    /* read the primitive variables from the initial condition file */         \
+    icfile.read(reinterpret_cast<char *>(&cells[i]._rho), sizeof(double));     \
+    icfile.read(reinterpret_cast<char *>(&cells[i]._u), sizeof(double));       \
+    icfile.read(reinterpret_cast<char *>(&cells[i]._P), sizeof(double));       \
+    icfile.read(reinterpret_cast<char *>(&cells[i]._a), sizeof(double));       \
+  }                                                                            \
+                                                                               \
+  /* close the initial condition file */                                       \
   icfile.close();
-}
 
 #endif // ICFILE_HPP
