@@ -138,10 +138,10 @@ double get_neutral_fraction(double rmin, double rmax, double rion,
   // Note: we assume rmax - rmin << rion_max - rion_min
   if (rmax < rion_min) {
     return 0.;
-  } else if (rmin < rion_min && rmax > rion_min) {
+  } else if (rmin < rion_min && rmax >= rion_min) {
     return get_neutral_fraction_integral(A, S, rion, rion_min, rmax) /
            (rmax - rmin);
-  } else if (rmin > rion_min && rmax < rion_max) {
+  } else if (rmin >= rion_min && rmax <= rion_max) {
     return get_neutral_fraction_integral(A, S, rion, rmin, rmax) /
            (rmax - rmin);
   } else if (rmin < rion_max && rmax > rion_max) {
@@ -206,6 +206,7 @@ int main(int argc, char **argv) {
   unsigned int ncell = NCELL;
   std::string ic_file_name(IC_FILE_NAME);
   double transition_width = IONIZATION_TRANSITION_WIDTH;
+  double bondi_pressure_contrast = BONDI_PRESSURE_CONTRAST;
 
   if (argc > 1) {
     ncell = atoi(argv[1]);
@@ -216,6 +217,14 @@ int main(int argc, char **argv) {
   if (argc > 3) {
     transition_width = atof(argv[3]);
   }
+  if (argc > 4) {
+    bondi_pressure_contrast = atof(argv[4]);
+  }
+
+#if EOS == EOS_BONDI
+  std::cout << "Precomputing Bondi luminosity..." << std::endl;
+  const double const_bondi_Q = BONDI_Q;
+#endif
 
   //  for(unsigned int i = 0; i < 1000; ++i){
   //    const double x = 0.2 + 0.001 * 0.2 * i;
@@ -245,7 +254,23 @@ int main(int argc, char **argv) {
             << ISOTHERMAL_C_SQUARED * HYDROGEN_MASS_IN_SI *
                    UNIT_VELOCITY_IN_SI * UNIT_VELOCITY_IN_SI / BOLTZMANN_K_IN_SI
             << " K" << std::endl;
+  std::cout << "Bondi radius: " << RBONDI << " ("
+            << RBONDI * UNIT_LENGTH_IN_SI / AU_IN_SI << " AU)" << std::endl;
+  std::cout << "Density at R_Bondi: "
+            << bondi_density(RBONDI * UNIT_LENGTH_IN_SI / (20. * AU_IN_SI)) *
+                   UNIT_DENSITY_IN_SI
+            << std::endl;
 #endif
+
+  std::cout << "Ionizing luminosity: "
+            << (4. * M_PI * 4.e-7 * bondi_Q(INITIAL_IONIZATION_RADIUS) *
+                UNIT_DENSITY_IN_SI * UNIT_MASS_IN_SI / HYDROGEN_MASS_IN_SI /
+                HYDROGEN_MASS_IN_SI)
+            << std::endl;
+
+  std::cout << "Initial ionization radius: "
+            << INITIAL_IONIZATION_RADIUS * UNIT_LENGTH_IN_SI / AU_IN_SI
+            << std::endl;
 
   std::cout << "Point mass: " << MASS_POINT_MASS * UNIT_MASS_IN_SI << " kg"
             << std::endl;
@@ -331,7 +356,8 @@ int main(int argc, char **argv) {
     // check if we need to output a snapshot
     if (istep % SNAPSTEP == 0) {
       const double pct = istep * 100. / NSTEP;
-      std::cout << "step " << istep << " of " << NSTEP << " (" << pct << " %)"
+      std::cout << ncell << ": "
+                << "step " << istep << " of " << NSTEP << " (" << pct << " %)"
                 << std::endl;
       std::cout << "Maximal system time step: " << maxdt << std::endl;
       write_snapshot(istep, cells, ncell);

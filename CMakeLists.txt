@@ -16,6 +16,8 @@
 # along with HydroCodeSpherical1D. If not, see <http://www.gnu.org/licenses/>.
 ################################################################################
 
+cmake_minimum_required(VERSION 2.8)
+
 project(HydroCodeSpherical1D)
 
 set(SOURCES
@@ -23,5 +25,64 @@ set(SOURCES
 
     RiemannSolver.hpp
 )
+
+# Configurable parameters
+
+if(NOT DEFINED ic)
+  message(STATUS "Using default ic")
+  set(ic "IC_FILE")
+endif(NOT DEFINED ic)
+message(STATUS "IC: ${ic}")
+
+if(NOT DEFINED gamma)
+  message(STATUS "Using default gamma")
+  set(gamma 1.001)
+endif(NOT DEFINED gamma)
+message(STATUS "Gamma: ${gamma}")
+
+if(NOT DEFINED dt)
+  message(STATUS "Using default dt")
+  set(dt 0.00001)
+endif(NOT DEFINED dt)
+message(STATUS "Dt: ${dt}")
+
+if(NOT DEFINED nstep)
+  message(STATUS "Using default nstep")
+  set(nstep 200000)
+endif(NOT DEFINED nstep)
+message(STATUS "Nstep: ${nstep}")
+
+if(NOT DEFINED snapstep)
+  message(STATUS "Using default snapstep")
+  set(snapstep 200)
+endif(NOT DEFINED snapstep)
+message(STATUS "Snapstep: ${snapstep}")
+
+if(NOT DEFINED nstep_relax)
+  message(STATUS "Using default nstep_relax")
+  set(nstep_relax 0)
+endif(NOT DEFINED nstep_relax)
+message(STATUS "Nstep_relax: ${nstep_relax}")
+
+if(NOT DEFINED eos)
+  message(STATUS "Using default eos")
+  set(eos "EOS_BONDI")
+endif(NOT DEFINED eos)
+message(STATUS "EOS: ${eos}")
+
+if(NOT DEFINED bondi_density_exponent)
+  message(STATUS "Using default bondi_density_exponent")
+  set(bondi_density_exponent 1.2)
+endif(NOT DEFINED bondi_density_exponent)
+message(STATUS "Bondi_density_exponent: ${bondi_density_exponent}")
+
+if(NOT DEFINED bondi_velocity_exponent)
+  message(STATUS "Using default bondi_velocity_exponent")
+  set(bondi_velocity_exponent 0.8)
+endif(NOT DEFINED bondi_velocity_exponent)
+message(STATUS "Bondi_velocity_exponent: ${bondi_velocity_exponent}")
+
+configure_file(${PROJECT_SOURCE_DIR}/Parameters.hpp.in
+               ${PROJECT_SOURCE_DIR}/Parameters.hpp @only)
 
 add_executable(HydroCodeSpherical1D ${SOURCES})

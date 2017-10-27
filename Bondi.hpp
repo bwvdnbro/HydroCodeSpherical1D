@@ -27,11 +27,30 @@
 #define BONDI_HPP
 
 #include "Cell.hpp"
+#include "LambertW.hpp"
 #include "SafeParameters.hpp"
 
 #include <cmath>
 
 #if EOS == EOS_BONDI
+
+#define BONDI_DENSITY (BONDI_DENSITY_IN_SI / UNIT_DENSITY_IN_SI)
+
+/*! @brief Bondi radius (in internal units of L). */
+#define RBONDI (0.5 * G * MASS_POINT_MASS / ISOTHERMAL_C_SQUARED)
+
+/*! @brief Bondi central density squared (in internal units of M^2 L^-6). */
+#define BONDI_DENSITY2 (BONDI_DENSITY * BONDI_DENSITY)
+
+/*! @brief \f$3-2E\f$, with \f$E\f$ the Bondi density exponent. */
+#define BONDI_THREE_MINUS_TWO_BONDI_DENSITY_EXPONENT                           \
+  (3. - 2. * BONDI_DENSITY_EXPONENT)
+
+/*! @brief Total ionizing luminosity outside the mask, assuming an initial
+ *  ionization radius with a given value, and assuming the initial density
+ *  profile is the Bondi profile with the given exponent and central density (in
+ *  internal units of M^2 L^-3). */
+#define BONDI_Q (bondi_Q(INITIAL_IONIZATION_RADIUS) - bondi_Q(RMIN))
 
 /**
  * @brief Set the initial value for the pressure of the given cell.
@@ -48,9 +67,7 @@
   /* total ionizing budget of the central source                               \
      every shell will absorb a fraction of this budget until the ionization    \
      radius is reached */                                                      \
-  double Cion =                                                                \
-      5. * std::pow(0.9, 2.4) / 3. *                                           \
-      (std::pow(INITIAL_IONIZATION_RADIUS, 0.6) - std::pow(0.1, 0.6));         \
+  double Cion = const_bondi_Q;                                                 \
   double rion = 0.;
 
 /**
@@ -94,7 +111,8 @@
   for (unsigned int i = 1; i < ncell + 1; ++i) {                               \
     const double nfac = cells[i]._nfac;                                        \
     const double ifac = 1. - nfac;                                             \
-    cells[i]._P = ISOTHERMAL_C_SQUARED * cells[i]._rho * (100. * ifac + nfac); \
+    cells[i]._P = ISOTHERMAL_C_SQUARED * cells[i]._rho *                       \
+                  (bondi_pressure_contrast * ifac + nfac);                     \
   }
 
 #endif
@@ -106,16 +124,16 @@
  */
 #define boundary_conditions_primitive_variables()                              \
   /* impose the Bondi solution at the boundaries */                            \
-  const double r_inv_low = 0.9 / cells[0]._midpoint;                           \
+  const double r_inv_low = RBONDI / cells[0]._midpoint;                        \
   cells[0]._rho = bondi_density(r_inv_low);                                    \
   cells[0]._u = bondi_velocity(r_inv_low);                                     \
   if (istep < NSTEP_RELAX) {                                                   \
     cells[0]._P = bondi_pressure(r_inv_low);                                   \
   } else {                                                                     \
-    cells[0]._P = 100. * bondi_pressure(r_inv_low);                            \
+    cells[0]._P = bondi_pressure_contrast * bondi_pressure(r_inv_low);         \
   }                                                                            \
                                                                                \
-  const double r_inv_high = 0.9 / cells[ncell + 1]._midpoint;                  \
+  const double r_inv_high = RBONDI / cells[ncell + 1]._midpoint;               \
   cells[ncell + 1]._rho = bondi_density(r_inv_high);                           \
   cells[ncell + 1]._u = bondi_velocity(r_inv_high);                            \
   cells[ncell + 1]._P = bondi_pressure(r_inv_high);
@@ -140,7 +158,7 @@
     if (istep < NSTEP_RELAX) {                                                 \
       Pmin = cells[0]._P - bondi_pressure(rmin_inv);                           \
     } else {                                                                   \
-      Pmin = cells[0]._P - 100. * bondi_pressure(rmin_inv);                    \
+      Pmin = cells[0]._P - bondi_pressure_contrast * bondi_pressure(rmin_inv); \
     }                                                                          \
     Pplu = cells[0]._P - cells[1]._P;                                          \
     if (std::abs(rhomin) < std::abs(rhoplu)) {                                 \
@@ -189,12 +207,35 @@
 #endif
 
 /**
+ * @brief Squared Bondi velocity divided by the sound speed squared.
+ *
+ * @param rinv Inverse radius (in units of RBONDI^-1).
+ * @return Bondi velocity squared divided by the sound speed squared.
+ */
+double u2_over_cs2(double rinv) {
+  const double lambertarg = -std::exp(3. + 4. * (std::log(rinv) - rinv));
+  if (rinv < 1.) {
+    return -LambertW::lambert_w(lambertarg, 0);
+  } else {
+    return -LambertW::lambert_w(lambertarg, -1);
+  }
+}
+
+/**
  * @brief Get the value of the Bondi density at the given inverse radius.
  *
- * @param rinv Inverse radius (in internal units of L^-1).
+ * @param rinv Inverse radius (in units of RBONDI^-1).
  * @return Value of the density (in internal units of M L^-3).
  */
-double bondi_density(double rinv) { return std::pow(rinv, 1.2); }
+double bondi_density(double rinv) {
+  // we need to manually disable the density very close to r = 0 to prevent
+  // errors in the Lambert W function
+  if (rinv < 150.) {
+    return BONDI_DENSITY * std::exp(-0.5 * u2_over_cs2(rinv) + 2. * rinv - 1.5);
+  } else {
+    return 0.;
+  }
+}
 
 /**
  * @brief Get the value of the Bondi velocity at the given inverse radius.
@@ -202,7 +243,9 @@ double bondi_density(double rinv) { return std::pow(rinv, 1.2); }
  * @param rinv Inverse radius (in internal units of L^-1).
  * @return Value of the fluid velocity (in internal units of L T^-1).
  */
-double bondi_velocity(double rinv) { return -std::pow(rinv, 0.8); }
+double bondi_velocity(double rinv) {
+  return -std::sqrt(ISOTHERMAL_C_SQUARED * u2_over_cs2(rinv));
+}
 
 /**
  * @brief Get the value of the Bondi pressure at the given inverse radius.
@@ -214,6 +257,55 @@ double bondi_pressure(double rinv) {
   return ISOTHERMAL_C_SQUARED * bondi_density(rinv);
 }
 
+/**
+ * @brief Integrand for the luminosity integral.
+ *
+ * @param r Radius (in internal units of L).
+ * @return Integrand: \f$r^2 \rho{}(r)^2\f$ (in internal units of M^2 L^-4).
+ */
+double bondi_Q_integrand(double r) {
+  const double rinv = RBONDI / r;
+  const double rho = bondi_density(rinv);
+  return r * r * rho * rho;
+}
+
+/**
+ * @brief Do a simple first order integration of the bondi_Q_integrand over the
+ * given interval.
+ *
+ * @param a Lower limit of the interval (in internal units of L).
+ * @param b Upper limit of the interval (in internal units of L).
+ * @return First order approximation to the integral over the interval.
+ */
+double bondi_Q_interval(double a, double b) {
+  return (b - a) * bondi_Q_integrand(0.5 * (a + b));
+}
+
+/**
+ * @brief Get the total luminosity absorbed by the volume within the given
+ * radius for the bondi density profile.
+ *
+ * @param r Radius (in internal units of L).
+ * @param tolerance Required relative accuracy for the result (default: 1.e-10).
+ * @return Total luminosity absorbed by the volume within the given radius
+ * (in internal units of M^2 L^-3).
+ */
+double bondi_Q(double r, double tolerance = 1.e-8) {
+  double I0 = bondi_Q_interval(0., r);
+  double I1 = bondi_Q_interval(0., 0.5 * r) + bondi_Q_interval(0.5 * r, r);
+  unsigned int npiece = 2;
+  while (std::abs(I0 - I1) > std::abs(I0 + I1) * tolerance) {
+    npiece <<= 1;
+    I0 = I1;
+    I1 = 0.;
+    const double dr = r / npiece;
+    for (unsigned int i = 0; i < npiece; ++i) {
+      I1 += bondi_Q_interval(i * dr, (i + 1) * dr);
+    }
+  }
+  return I1;
+}
+
 #if IC == IC_BONDI
 /**
  * @brief Initialize the given cells.
@@ -222,7 +314,7 @@ double bondi_pressure(double rinv) {
  */
 #define initialize(cells, ncell)                                               \
   for (unsigned int i = 1; i < ncell + 1; ++i) {                               \
-    const double r_inv = 0.9 / cells[i]._midpoint;                             \
+    const double r_inv = RBONDI / cells[i]._midpoint;                          \
     cells[i]._rho = bondi_density(r_inv);                                      \
     cells[i]._u = bondi_velocity(r_inv);                                       \
     cells[i]._P = bondi_pressure(r_inv);                                       \
