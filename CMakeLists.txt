@@ -85,4 +85,14 @@ message(STATUS "Bondi_velocity_exponent: ${bondi_velocity_exponent}")
 configure_file(${PROJECT_SOURCE_DIR}/Parameters.hpp.in
                ${PROJECT_SOURCE_DIR}/Parameters.hpp @only)
 
+find_package(OpenMP)
+if(OPENMP_FOUND)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+else(OPENMP_FOUND)
+  message(ERROR "OpenMP not found!")
+endif(OPENMP_FOUND)
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffast-math -ftree-vectorize")
+
 add_executable(HydroCodeSpherical1D ${SOURCES})

@@ -32,7 +32,7 @@
  * @param cells Cells to initialize.
  */
 #define initialize(cells, ncell)                                               \
-  for (unsigned int i = 1; i < ncell + 1; ++i) {                               \
+  _Pragma("omp parallel for") for (unsigned int i = 1; i < ncell + 1; ++i) {   \
     if (cells[i]._midpoint < 0.25) {                                           \
       cells[i]._rho = 1.;                                                      \
       cells[i]._P = 1.;                                                        \

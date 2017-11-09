@@ -43,10 +43,9 @@
 #endif
 
 /**
- * @brief Code executed before the primitive variable conversion loop is
- * entered.
+ * @brief Code to determine the neutral fraction of the cells.
  */
-#define before_primitive_variable_conversion()
+#define do_ionization()
 
 /**
  * @brief Conversion function called during the primitive variable conversion
@@ -56,17 +55,11 @@
  */
 #if EOS == EOS_IDEAL
 #define update_pressure(cell)                                                  \
-  cell_P = (GAMMA - 1.) *                                                      \
-           (cell._E / cell._V - 0.5 * cell._rho * cell._u * cell._u);
+  cell._P = (GAMMA - 1.) *                                                     \
+            (cell._E / cell._V - 0.5 * cell._rho * cell._u * cell._u);
 #elif EOS == EOS_ISOTHERMAL
 #define update_pressure(cell) cell._P = ISOTHERMAL_C_SQUARED * cell._rho;
 #endif
-
-/**
- * @brief Code executed after the primitive variable conversion loop is
- * executed.
- */
-#define after_primitive_variable_conversion()
 
 #endif
 

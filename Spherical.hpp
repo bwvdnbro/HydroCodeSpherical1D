@@ -34,22 +34,24 @@
  * to couple the source term to the hydro step.
  */
 #define add_spherical_source_term()                                            \
-  for (unsigned int i = 1; i < ncell + 1; ++i) {                               \
+  _Pragma("omp parallel for") for (uint_fast32_t i = 1; i < ncell + 1; ++i) {  \
     const double r = cells[i]._midpoint;                                       \
-    const double Ui[3] = {cells[i]._m / cells[i]._V,                           \
-                          cells[i]._p / cells[i]._V,                           \
-                          cells[i]._E / cells[i]._V};                          \
-    double K1[3];                                                              \
-    K1[0] = -DT * Ui[1] / r;                                                   \
-    K1[1] = -DT * Ui[1] * Ui[1] / Ui[0] / r;                                   \
-    const double p1 = (GAMMA - 1.) * (Ui[2] - 0.5 * Ui[1] * Ui[1] / Ui[0]);    \
-    K1[2] = -DT * Ui[1] * (Ui[2] + p1) / Ui[0] / r;                            \
+    const double rinv = 1. / r;                                                \
+    const double Vinv = 1. / cells[i]._V;                                      \
+    const double dt = cells[i]._dt;                                            \
+    const double Ui[3] = {cells[i]._m * Vinv, cells[i]._p * Vinv,              \
+                          cells[i]._E * Vinv};                                 \
+    const double Ui0inv = 1. / Ui[0];                                          \
+    const double Ui12 = Ui[1] * Ui[1];                                         \
+    const double p1 = (GAMMA - 1.) * (Ui[2] - 0.5 * Ui12 * Ui0inv);            \
+    const double K1[3] = {-dt * Ui[1] * rinv, -dt * Ui12 * Ui0inv * rinv,      \
+                          -dt * Ui[1] * (Ui[2] + p1) * Ui0inv * rinv};         \
     double U[3] = {Ui[0] + K1[0], Ui[1] + K1[1], Ui[2] + K1[2]};               \
-    double K2[3];                                                              \
-    K2[0] = -DT * U[1] / r;                                                    \
-    K2[1] = -DT * U[1] * U[1] / U[0] / r;                                      \
-    const double p2 = (GAMMA - 1.) * (U[2] - 0.5 * U[1] * U[1] / U[0]);        \
-    K2[2] = -DT * U[1] * (U[2] + p2) / U[0] / r;                               \
+    const double U0inv = 1. / U[0];                                            \
+    const double U12 = U[1] * U[1];                                            \
+    const double p2 = (GAMMA - 1.) * (U[2] - 0.5 * U12 * U0inv);               \
+    const double K2[3] = {-dt * U[1] * rinv, -dt * U12 * U0inv * rinv,         \
+                          -dt * U[1] * (U[2] + p2) * U0inv * rinv};            \
     U[0] = Ui[0] + 0.5 * (K1[0] + K2[0]);                                      \
     U[1] = Ui[1] + 0.5 * (K1[1] + K2[1]);                                      \
     U[2] = Ui[2] + 0.5 * (K1[2] + K2[2]);                                      \

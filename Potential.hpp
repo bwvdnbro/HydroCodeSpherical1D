@@ -30,17 +30,18 @@
  * @brief Add the gravitational acceleration.
  */
 #if POTENTIAL == POTENTIAL_POINT_MASS
-#define do_gravity()                                                           \
-  /* add gravitational acceleration */                                         \
-  for (unsigned int i = 1; i < ncell + 1; ++i) {                               \
-    const double r = cells[i]._midpoint;                                       \
-    const double a = -G * MASS_POINT_MASS / (r * r);                           \
-    cells[i]._a = a;                                                           \
+#define do_gravity() /* add gravitational acceleration */                      \
+  _Pragma("omp parallel for") for (uint_fast32_t i = 1; i < ncell + 1; ++i) {  \
     const double m = cells[i]._V * cells[i]._rho;                              \
-    cells[i]._p += 0.5 * DT * a * m;                                           \
+    cells[i]._p += 0.5 * cells[i]._dt * cells[i]._a * m;                       \
     /* we do not update the total energy, as we only run gravity simulations   \
        with an isothermal eos, in which case the total energy is ignored by    \
        the hydro scheme */                                                     \
+    /*const double r = cells[i]._midpoint;                                     \
+    const double a = -G * MASS_POINT_MASS / (r * r);                           \
+    cells[i]._a = a;                                                           \
+    const double m = cells[i]._V * cells[i]._rho;                              \
+    cells[i]._p += 0.5 * DT * a * m; \*/                                       \
   }
 #elif POTENTIAL == POTENTIAL_NONE
 #define do_gravity()
@@ -50,11 +51,13 @@
  * @brief Do the gravitational half time step prediction for the given cell.
  *
  * @param cell Cell.
+ * @param half_dt Half the particle time step (in internal units of T).
  */
 #if POTENTIAL != POTENTIAL_NONE
-#define add_gravitational_prediction(cell) cell._u += 0.5 * DT * cell._a;
+#define add_gravitational_prediction(cell, half_dt)                            \
+  cell._u += half_dt * cell._a;
 #else
-#define add_gravitational_prediction(cell)
+#define add_gravitational_prediction(cell, half_dt)
 #endif
 
 #endif // POTENTIAL_HPP

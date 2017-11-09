@@ -958,6 +958,38 @@ public:
       return -1;
     }
   }
+
+  /**
+   * @brief Solve the Riemann problem with the given left and right state
+   * directly for the flux.
+   *
+   * @param rhoL Left state density.
+   * @param uL Left state velocity.
+   * @param PL Left state pressure.
+   * @param rhoR Right state density.
+   * @param uR Right state velocity.
+   * @param PR Right state pressure.
+   * @param mflux Mass flux solution.
+   * @param pflux Momentum flux solution.
+   * @param Eflux Energy flux solution.
+   * @return Flag signaling whether the left state (-1), the right state (1), or
+   * a vacuum state (0) was sampled.
+   */
+  inline int solve_for_flux(double rhoL, double uL, double PL, double rhoR,
+                            double uR, double PR, double &mflux, double &pflux,
+                            double &Eflux) {
+    // solve the Riemann problem across the cell face
+    double rhosol, usol, Psol;
+    int solver_output = solve(rhoL, uL, PL, rhoR, uR, PR, rhosol, usol, Psol);
+
+    // compute fluxes
+    mflux = rhosol * usol;
+    pflux = rhosol * usol * usol + Psol;
+    Eflux = (Psol / (_gamma - 1.) + 0.5 * rhosol * usol * usol) * usol +
+            Psol * usol;
+
+    return solver_output;
+  }
 };
 
 #endif // RIEMANNSOLVER_HPP

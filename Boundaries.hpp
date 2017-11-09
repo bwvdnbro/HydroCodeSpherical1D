@@ -38,10 +38,10 @@
 #define boundary_conditions_primitive_variables()                              \
   cells[0]._rho = cells[1]._rho;                                               \
   cells[0]._u = cells[1]._u;                                                   \
-  cells[0]._P = ISOTHERMAL_C_SQUARED * cells[1]._rho;                          \
+  cells[0]._P = cells[1]._P;                                                   \
   cells[ncell + 1]._rho = cells[ncell]._rho;                                   \
   cells[ncell + 1]._u = cells[ncell]._u;                                       \
-  cells[ncell + 1]._P = ISOTHERMAL_C_SQUARED * cells[ncell + 1]._rho;
+  cells[ncell + 1]._P = cells[ncell]._P;
 #elif BOUNDARIES == BOUNDARIES_REFLECTIVE
 #define boundary_conditions_primitive_variables()                              \
   cells[0]._rho = cells[1]._rho;                                               \

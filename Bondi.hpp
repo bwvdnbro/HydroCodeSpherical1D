@@ -32,8 +32,6 @@
 
 #include <cmath>
 
-#if EOS == EOS_BONDI
-
 #define BONDI_DENSITY (BONDI_DENSITY_IN_SI / UNIT_DENSITY_IN_SI)
 
 /*! @brief Bondi radius (in internal units of L). */
@@ -52,6 +50,8 @@
  *  internal units of M^2 L^-3). */
 #define BONDI_Q (bondi_Q(INITIAL_IONIZATION_RADIUS) - bondi_Q(RMIN))
 
+#if EOS == EOS_BONDI
+
 /**
  * @brief Set the initial value for the pressure of the given cell.
  *
@@ -60,61 +60,55 @@
 #define initial_pressure(cell) cell._P = ISOTHERMAL_C_SQUARED * cell._rho
 
 /**
- * @brief Code executed before the primitive variable conversion loop is
- * entered.
- */
-#define before_primitive_variable_conversion()                                 \
-  /* total ionizing budget of the central source                               \
-     every shell will absorb a fraction of this budget until the ionization    \
-     radius is reached */                                                      \
-  double Cion = const_bondi_Q;                                                 \
-  double rion = 0.;
-
-/**
  * @brief Conversion function called during the primitive variable conversion
  * for the given cell.
  *
  * @param cell Cell.
  */
 #define update_pressure(cell)                                                  \
-  /* if ionization is active: check if the cell is ionized */                  \
-  if (istep > NSTEP_RELAX && Cion >= 0.) {                                     \
-    /* as long as there is ionizing radiation left we assume cells are         \
-       ionized */                                                              \
-    const double rmin = cells[i]._midpoint - HALF_CELLSIZE;                    \
-    const double rmax = cells[i]._midpoint + HALF_CELLSIZE;                    \
-    const double Vshell = (rmax * rmax * rmax - rmin * rmin * rmin) / 3.;      \
-    const double Cshell = Vshell * cells[i]._rho * cells[i]._rho;              \
-    const double ifac = std::min(1., Cion / Cshell);                           \
-    if (ifac < 1.) {                                                           \
-      if (ifac > 0.) {                                                         \
-        const double nfac = 1. - ifac;                                         \
-        rion = ifac * rmax + nfac * rmin;                                      \
-      }                                                                        \
-    } else {                                                                   \
-      rion = rmax;                                                             \
-    }                                                                          \
-    /* subtract this shell's ionization budget from the total */               \
-    Cion -= ifac * Cshell;                                                     \
-  }
+  const double nfac = cells[i]._nfac;                                          \
+  const double ifac = 1. - nfac;                                               \
+  cells[i]._P = ISOTHERMAL_C_SQUARED * cells[i]._rho *                         \
+                (bondi_pressure_contrast * ifac + nfac);
 
 /**
- * @brief Code executed after the primitive variable conversion loop is
- * executed.
+ * @brief Code to determine the neutral fraction of the cells.
  */
-#define after_primitive_variable_conversion()                                  \
-  for (unsigned int i = 1; i < ncell + 1; ++i) {                               \
-    cells[i]._nfac = get_neutral_fraction(cells[i]._midpoint - HALF_CELLSIZE,  \
-                                          cells[i]._midpoint + HALF_CELLSIZE,  \
-                                          rion, transition_width);             \
+#define do_ionization()                                                        \
+  double Cion = const_bondi_Q;                                                 \
+  double rion = 0.;                                                            \
+  for (uint_fast32_t i = 1; i < ncell + 1; ++i) {                              \
+    if (Cion > 0.) {                                                           \
+      const double rmin = cells[i]._lowlim;                                    \
+      const double rmax = cells[i]._uplim;                                     \
+      const double Vshell = (rmax * rmax * rmax - rmin * rmin * rmin) / 3.;    \
+      const double Cshell = Vshell * cells[i]._rho * cells[i]._rho;            \
+      const double ifac = std::min(1., Cion / Cshell);                         \
+      if (ifac < 1.) {                                                         \
+        if (ifac > 0.) {                                                       \
+          const double nfac = 1. - ifac;                                       \
+          rion = ifac * rmax + nfac * rmin;                                    \
+        }                                                                      \
+      } else {                                                                 \
+        rion = rmax;                                                           \
+      }                                                                        \
+      /* subtract this shell's ionization budget from the total */             \
+      Cion -= ifac * Cshell;                                                   \
+    }                                                                          \
   }                                                                            \
-  for (unsigned int i = 1; i < ncell + 1; ++i) {                               \
-    const double nfac = cells[i]._nfac;                                        \
-    const double ifac = 1. - nfac;                                             \
-    cells[i]._P = ISOTHERMAL_C_SQUARED * cells[i]._rho *                       \
-                  (bondi_pressure_contrast * ifac + nfac);                     \
+  if (std::abs(rion - rion_old) > 1.e-4 * std::abs(rion + rion_old)) {         \
+    bondi_rfile << current_integer_time * time_conversion_factor *             \
+                       UNIT_TIME_IN_SI                                         \
+                << "\t" << rion * UNIT_LENGTH_IN_SI << "\n";                   \
+  }                                                                            \
+  rion_old = rion;                                                             \
+  const double rion_min = rion - 0.5 * transition_width;                       \
+  const double rion_max = rion + 0.5 * transition_width;                       \
+  _Pragma("omp parallel for") for (uint_fast32_t i = 1; i < ncell + 1; ++i) {  \
+    cells[i]._nfac =                                                           \
+        get_neutral_fraction(cells[i]._lowlim, cells[i]._uplim, rion,          \
+                             rion_min, rion_max, bondi_S, bondi_A);            \
   }
-
 #endif
 
 #if BOUNDARIES == BOUNDARIES_BONDI
@@ -124,42 +118,26 @@
  */
 #define boundary_conditions_primitive_variables()                              \
   /* impose the Bondi solution at the boundaries */                            \
-  const double r_inv_low = RBONDI / cells[0]._midpoint;                        \
-  cells[0]._rho = bondi_density(r_inv_low);                                    \
-  cells[0]._u = bondi_velocity(r_inv_low);                                     \
-  if (istep < NSTEP_RELAX) {                                                   \
-    cells[0]._P = bondi_pressure(r_inv_low);                                   \
-  } else {                                                                     \
-    cells[0]._P = bondi_pressure_contrast * bondi_pressure(r_inv_low);         \
-  }                                                                            \
+  cells[0]._rho = bondi_density_low;                                           \
+  cells[0]._u = bondi_velocity_low;                                            \
+  cells[0]._P = bondi_pressure_contrast * bondi_pressure_low;                  \
                                                                                \
-  const double r_inv_high = RBONDI / cells[ncell + 1]._midpoint;               \
-  cells[ncell + 1]._rho = bondi_density(r_inv_high);                           \
-  cells[ncell + 1]._u = bondi_velocity(r_inv_high);                            \
-  cells[ncell + 1]._P = bondi_pressure(r_inv_high);
+  cells[ncell + 1]._rho = bondi_density_high;                                  \
+  cells[ncell + 1]._u = bondi_velocity_high;                                   \
+  cells[ncell + 1]._P = bondi_pressure_high;
 
 /**
  * @brief Apply boundary conditions after the gradient computation.
  */
 #define boundary_conditions_gradients()                                        \
-  /* compute the exact value of the gradient for the bondi solution */         \
-  const double rmin = cells[0]._midpoint - CELLSIZE;                           \
-  const double rmax = cells[ncell + 1]._midpoint + CELLSIZE;                   \
-  const double rmin_inv = 1. / rmin;                                           \
-  const double rmax_inv = 1. / rmax;                                           \
-                                                                               \
   /* lower boundary */                                                         \
   {                                                                            \
     double rhomin, rhoplu, umin, uplu, Pmin, Pplu, dmin, dplu;                 \
-    rhomin = cells[0]._rho - bondi_density(rmin_inv);                          \
+    rhomin = cells[0]._rho - bondi_density_min;                                \
     rhoplu = cells[0]._rho - cells[1]._rho;                                    \
-    umin = cells[0]._u - bondi_velocity(rmin_inv);                             \
+    umin = cells[0]._u - bondi_velocity_min;                                   \
     uplu = cells[0]._u - cells[1]._u;                                          \
-    if (istep < NSTEP_RELAX) {                                                 \
-      Pmin = cells[0]._P - bondi_pressure(rmin_inv);                           \
-    } else {                                                                   \
-      Pmin = cells[0]._P - bondi_pressure_contrast * bondi_pressure(rmin_inv); \
-    }                                                                          \
+    Pmin = cells[0]._P - bondi_pressure_contrast * bondi_pressure_min;         \
     Pplu = cells[0]._P - cells[1]._P;                                          \
     if (std::abs(rhomin) < std::abs(rhoplu)) {                                 \
       cells[0]._grad_rho = rhomin / CELLSIZE;                                  \
@@ -182,11 +160,11 @@
   {                                                                            \
     double rhomin, rhoplu, umin, uplu, Pmin, Pplu, dmin, dplu;                 \
     rhomin = cells[ncell + 1]._rho - cells[ncell]._rho;                        \
-    rhoplu = cells[ncell + 1]._rho - bondi_density(rmax_inv);                  \
+    rhoplu = cells[ncell + 1]._rho - bondi_density_max;                        \
     umin = cells[ncell + 1]._u - cells[ncell]._u;                              \
-    uplu = cells[ncell + 1]._u - bondi_velocity(rmax_inv);                     \
+    uplu = cells[ncell + 1]._u - bondi_velocity_max;                           \
     Pmin = cells[ncell + 1]._P - cells[ncell]._P;                              \
-    Pplu = cells[ncell + 1]._P - bondi_pressure(rmax_inv);                     \
+    Pplu = cells[ncell + 1]._P - bondi_pressure_max;                           \
     if (std::abs(rhomin) < std::abs(rhoplu)) {                                 \
       cells[ncell + 1]._grad_rho = rhomin / CELLSIZE;                          \
     } else {                                                                   \
@@ -306,6 +284,54 @@ double bondi_Q(double r, double tolerance = 1.e-8) {
   return I1;
 }
 
+inline static double
+get_neutral_fraction_integral(const double A, const double S, const double rion,
+                              const double rmin, const double rmax) {
+  const double rmaxrel = rmax - rion;
+  const double rminrel = rmin - rion;
+  const double rdiff = rmax - rmin;
+  const double rmaxrel2 = rmaxrel * rmaxrel;
+  const double rmaxrel4 = rmaxrel2 * rmaxrel2;
+  const double rminrel2 = rminrel * rminrel;
+  const double rminrel4 = rminrel2 * rminrel2;
+  return A * (rmaxrel4 - rminrel4) + S * (rmaxrel2 - rminrel2) + 0.5 * rdiff;
+}
+
+/**
+ * @brief Get the neutral fraction for the cell with the given midpoint radius.
+ *
+ * New version that contains a linear transition from ionized to neutral.
+ *
+ * @param rmin Radius of the lower wall of the cell (in internal units of L).
+ * @param rmax Radius of the upper wall of the cell (in internal units of L).
+ * @param rion Ionization radius (in internal units of L).
+ * @param transition_width Width of the transition region (in internal units of
+ * L).
+ * @return Neutral fraction within the cell.
+ */
+inline static double get_neutral_fraction(const double rmin, const double rmax,
+                                          const double rion,
+                                          const double rion_min,
+                                          const double rion_max, const double S,
+                                          const double A) {
+  // Note: we assume rmax - rmin << rion_max - rion_min
+  if (rmax < rion_min) {
+    return 0.;
+  } else if (rmin < rion_min && rmax >= rion_min) {
+    return get_neutral_fraction_integral(A, S, rion, rion_min, rmax) /
+           (rmax - rmin);
+  } else if (rmin >= rion_min && rmax <= rion_max) {
+    return get_neutral_fraction_integral(A, S, rion, rmin, rmax) /
+           (rmax - rmin);
+  } else if (rmin < rion_max && rmax > rion_max) {
+    return (get_neutral_fraction_integral(A, S, rion, rmin, rion_max) +
+            (rmax - rion_max)) /
+           (rmax - rmin);
+  } else {
+    return 1.;
+  }
+}
+
 #if IC == IC_BONDI
 /**
  * @brief Initialize the given cells.
@@ -313,7 +339,33 @@ double bondi_Q(double r, double tolerance = 1.e-8) {
  * @param cells Cells to initialize.
  */
 #define initialize(cells, ncell)                                               \
-  for (unsigned int i = 1; i < ncell + 1; ++i) {                               \
+  std::ofstream bondi_rfile("ionization_radius.txt");                          \
+  bondi_rfile << "# time (s)\tionization radius (m)\n";                        \
+  double rion_old = 0.;                                                        \
+  const double bondi_r_inv_low = RBONDI / cells[0]._midpoint;                  \
+  const double bondi_density_low = bondi_density(bondi_r_inv_low);             \
+  const double bondi_velocity_low = bondi_velocity(bondi_r_inv_low);           \
+  const double bondi_pressure_low = bondi_pressure(bondi_r_inv_low);           \
+                                                                               \
+  const double bondi_r_inv_high = RBONDI / cells[ncell + 1]._midpoint;         \
+  const double bondi_density_high = bondi_density(bondi_r_inv_high);           \
+  const double bondi_velocity_high = bondi_velocity(bondi_r_inv_high);         \
+  const double bondi_pressure_high = bondi_pressure(bondi_r_inv_high);         \
+                                                                               \
+  const double bondi_rmin_inv = 1. / (cells[0]._midpoint - CELLSIZE);          \
+  const double bondi_rmax_inv = 1. / (cells[ncell + 1]._midpoint + CELLSIZE);  \
+  const double bondi_density_min = bondi_density(bondi_rmin_inv);              \
+  const double bondi_velocity_min = bondi_velocity(bondi_rmin_inv);            \
+  const double bondi_pressure_min = bondi_pressure(bondi_rmin_inv);            \
+  const double bondi_density_max = bondi_density(bondi_rmax_inv);              \
+  const double bondi_velocity_max = bondi_velocity(bondi_rmax_inv);            \
+  const double bondi_pressure_max = bondi_pressure(bondi_rmax_inv);            \
+                                                                               \
+  const double bondi_S =                                                       \
+      (transition_width > 0.) ? 3. / (4. * transition_width) : 0.;             \
+  const double bondi_A = -32. * bondi_S * bondi_S * bondi_S / 27.;             \
+                                                                               \
+  _Pragma("omp parallel for") for (unsigned int i = 1; i < ncell + 1; ++i) {   \
     const double r_inv = RBONDI / cells[i]._midpoint;                          \
     cells[i]._rho = bondi_density(r_inv);                                      \
     cells[i]._u = bondi_velocity(r_inv);                                       \

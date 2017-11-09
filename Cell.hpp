@@ -26,6 +26,8 @@
 #ifndef CELL_HPP
 #define CELL_HPP
 
+#include <cstdint>
+
 /**
  * @brief Single cell of the grid.
  */
@@ -61,17 +63,15 @@ public:
   /*! @brief 1D cell volume: radial length of the spherical shell (in internal
    *  units of L). */
   double _V;
-  /*! @brief Actual 3D cell volume: volume of the shell (in internal units of
-   *  L^3). */
-  double _Vreal;
   /*! @brief Radial coordinate of the center of the shell (in internal units of
    *  L). */
   double _midpoint;
-
-  /*! @brief Neighbouring cell to the left. */
-  Cell *_left_ngb;
-  /*! @brief Neighbouring cell to the right. */
-  Cell *_right_ngb;
+  /*! @brief Radial coordinate of the lower boundary of the shell (in internal
+   *  units of L). */
+  double _lowlim;
+  /*! @brief Radial coordinate of the upper boundary of the shell (in internal
+   *  units of L). */
+  double _uplim;
 
   // gravitational quantities
 
@@ -79,7 +79,17 @@ public:
   double _a;
 
   // ionization quantities
+
+  /*! @brief Neutral fraction. */
   double _nfac;
+
+  // time step
+
+  /*! @brief Integer time step (in integer time units). */
+  uint_fast64_t _integer_dt;
+
+  /*! @brief Physical time step (in internal units of T). */
+  double _dt;
 };
 
 #endif // CELL_HPP
