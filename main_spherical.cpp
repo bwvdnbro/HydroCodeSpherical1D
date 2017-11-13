@@ -118,15 +118,16 @@ enum LogEntry{
 };
 
 static inline bool changed(const int logentry, const Cell &cell){
+  static const double tol = 1.e-3;
   switch(logentry){
   case LOGENTRY_DENSITY:
-    return std::abs(cell._rho - cell._last_rho) > 1.e-2 * std::abs(cell._rho - cell._last_rho);
+    return std::abs(cell._rho - cell._last_rho) > tol * std::abs(cell._rho + cell._last_rho);
   case LOGENTRY_VELOCITY:
-    return std::abs(cell._u - cell._last_u) > 1.e-2 * std::abs(cell._u - cell._last_u);
+    return std::abs(cell._u - cell._last_u) > tol * std::abs(cell._u + cell._last_u);
   case LOGENTRY_PRESSURE:
-    return std::abs(cell._P - cell._last_P) > 1.e-2 * std::abs(cell._P - cell._last_P);
+    return std::abs(cell._P - cell._last_P) > tol * std::abs(cell._P + cell._last_P);
   case LOGENTRY_NFRAC:
-    return std::abs(cell._nfac - cell._last_nfac) > 1.e-2 * std::abs(cell._nfac - cell._last_nfac);
+    return std::abs(cell._nfac - cell._last_nfac) > tol * std::abs(cell._nfac + cell._last_nfac);
   default:
     return false;
   }
@@ -151,8 +152,8 @@ static inline double get_value(const int logentry, Cell &cell){
   }
 }
 
-static inline void write_logfile(std::ofstream &logfile, Cell *cells, const unsigned int ncell, const double time) {
-  if(time == 0.){
+static inline void write_logfile(std::ofstream &logfile, Cell *cells, const unsigned int ncell, const double time, bool full_dump = false) {
+  if(full_dump){
     // initial write: write all particles
     for(uint_fast16_t i = 1; i < ncell + 1; ++i){
       for(int logentry = 0; logentry < NUMBER_OF_LOGENTRIES; ++logentry){
@@ -335,7 +336,7 @@ int main(int argc, char **argv) {
   // set up the initial condition
   initialize(cells, ncell);
 
-  const double courant_factor = 0.5;
+  const double courant_factor = 0.01;
 
   uint_fast64_t min_integer_dt = integer_maxtime;
 #pragma omp parallel for reduction(min : min_integer_dt)
@@ -363,7 +364,7 @@ int main(int argc, char **argv) {
   }
   
   std::ofstream logfile("logfile.dat");
-  write_logfile(logfile, cells, ncell, 0.);
+  write_logfile(logfile, cells, ncell, 0., true);
 
   // set cell time steps
   // round min_integer_dt to closest smaller power of 2
@@ -647,6 +648,9 @@ int main(int argc, char **argv) {
     step_time.reset();
     current_integer_time += current_integer_dt;
   }
+
+  // write the final logfile entry
+  write_logfile(logfile, cells, ncell, current_integer_time * time_conversion_factor, true);
 
   // write the final snapshot
   write_snapshot(isnap, current_integer_time * time_conversion_factor, cells, ncell);
