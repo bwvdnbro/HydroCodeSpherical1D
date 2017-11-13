@@ -30,11 +30,11 @@
 /*! @brief Minimum radius (in internal units of L). */
 #define RMIN 0.2
 /*! @brief Maximum radius (in internal units of L). */
-#define RMAX 0.5
+#define RMAX 2.
 
 /*! @brief Default number of spherical shells (1D "cells") in between RMIN and
  *  RMAX. */
-#define NCELL 1000
+#define NCELL 2000
 /*! @brief Adiabatic index. */
 #define GAMMA @gamma@
 /*! @brief Fixed time step (in internal units of T). */

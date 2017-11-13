@@ -32,6 +32,11 @@
 #else
 
 /**
+ * @brief Initialize variables used for the boundary conditions.
+ */
+#define boundary_conditions_initialize()
+
+/**
  * @brief Apply boundary conditions after the primitive variable conversion.
  */
 #if BOUNDARIES == BOUNDARIES_OPEN

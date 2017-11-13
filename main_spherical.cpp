@@ -73,7 +73,7 @@ static std::string get_timestamp() {
  * @param istep Index of the snapshot file.
  * @param cells Cells to write.
  */
-void write_snapshot(uint_fast64_t istep, const Cell *cells,
+void write_snapshot(uint_fast64_t istep, double time, const Cell *cells,
                     const unsigned int ncell) {
   std::stringstream filename;
   filename << "snapshot_";
@@ -83,7 +83,7 @@ void write_snapshot(uint_fast64_t istep, const Cell *cells,
   filename << ".txt";
   std::cout << "Writing snapshot " << filename.str() << std::endl;
   std::ofstream ofile(filename.str().c_str());
-  ofile << "# time: " << istep * DT * UNIT_TIME_IN_SI << "\n";
+  ofile << "# time: " << time * UNIT_TIME_IN_SI << "\n";
   for (uint_fast32_t i = 1; i < ncell + 1; ++i) {
     ofile << cells[i]._midpoint * UNIT_LENGTH_IN_SI << "\t"
           << cells[i]._rho * UNIT_DENSITY_IN_SI << "\t"
@@ -106,6 +106,86 @@ void write_binary_snapshot(const Cell *cells, const unsigned int ncell) {
     ofile.write(reinterpret_cast<const char *>(&cells[i]._u), sizeof(double));
     ofile.write(reinterpret_cast<const char *>(&cells[i]._P), sizeof(double));
     ofile.write(reinterpret_cast<const char *>(&cells[i]._a), sizeof(double));
+  }
+}
+
+enum LogEntry{
+  LOGENTRY_DENSITY = 0,
+  LOGENTRY_VELOCITY,
+  LOGENTRY_PRESSURE,
+  LOGENTRY_NFRAC,
+  NUMBER_OF_LOGENTRIES
+};
+
+static inline bool changed(const int logentry, const Cell &cell){
+  switch(logentry){
+  case LOGENTRY_DENSITY:
+    return std::abs(cell._rho - cell._last_rho) > 1.e-2 * std::abs(cell._rho - cell._last_rho);
+  case LOGENTRY_VELOCITY:
+    return std::abs(cell._u - cell._last_u) > 1.e-2 * std::abs(cell._u - cell._last_u);
+  case LOGENTRY_PRESSURE:
+    return std::abs(cell._P - cell._last_P) > 1.e-2 * std::abs(cell._P - cell._last_P);
+  case LOGENTRY_NFRAC:
+    return std::abs(cell._nfac - cell._last_nfac) > 1.e-2 * std::abs(cell._nfac - cell._last_nfac);
+  default:
+    return false;
+  }
+}
+
+static inline double get_value(const int logentry, Cell &cell){
+  switch(logentry){
+  case LOGENTRY_DENSITY:
+    cell._last_rho = cell._rho;
+    return cell._rho * UNIT_DENSITY_IN_SI;
+  case LOGENTRY_VELOCITY:
+    cell._last_u = cell._u;
+    return cell._u * UNIT_VELOCITY_IN_SI;
+  case LOGENTRY_PRESSURE:
+    cell._last_P = cell._P;
+    return cell._P * UNIT_PRESSURE_IN_SI;
+  case LOGENTRY_NFRAC:
+    cell._last_nfac = cell._nfac;
+    return cell._nfac;
+  default:
+    return 0.;
+  }
+}
+
+static inline void write_logfile(std::ofstream &logfile, Cell *cells, const unsigned int ncell, const double time) {
+  if(time == 0.){
+    // initial write: write all particles
+    for(uint_fast16_t i = 1; i < ncell + 1; ++i){
+      for(int logentry = 0; logentry < NUMBER_OF_LOGENTRIES; ++logentry){
+        unsigned long previous_entry = cells[i]._last_entry;
+        cells[i]._last_entry = logfile.tellp();
+        previous_entry = cells[i]._last_entry - previous_entry;
+        logfile.write(reinterpret_cast<char*>(&previous_entry), sizeof(unsigned long));
+        logfile.write(reinterpret_cast<char*>(&cells[i]._index), sizeof(unsigned short));
+        logfile.write(reinterpret_cast<char*>(&logentry), sizeof(int));
+        double timecopy = time;
+        logfile.write(reinterpret_cast<char*>(&timecopy), sizeof(double));
+        double value = get_value(logentry, cells[i]);
+        logfile.write(reinterpret_cast<char*>(&value), sizeof(double));
+      }
+    }
+  } else {
+    // only write interesting quantities
+    for(uint_fast16_t i = 1; i < ncell + 1; ++i){
+      for(int logentry = 0; logentry < NUMBER_OF_LOGENTRIES; ++logentry){
+        if(changed(logentry, cells[i])){
+          unsigned long previous_entry = cells[i]._last_entry;
+          cells[i]._last_entry = logfile.tellp();
+          previous_entry = cells[i]._last_entry - previous_entry;
+          logfile.write(reinterpret_cast<char*>(&previous_entry), sizeof(unsigned long));
+          logfile.write(reinterpret_cast<char*>(&cells[i]._index), sizeof(unsigned short));
+          logfile.write(reinterpret_cast<char*>(&logentry), sizeof(int));
+          double timecopy = time;
+          logfile.write(reinterpret_cast<char*>(&timecopy), sizeof(double));
+          double value = get_value(logentry, cells[i]);
+          logfile.write(reinterpret_cast<char*>(&value), sizeof(double));
+        }
+      }
+    }
   }
 }
 
@@ -157,6 +237,7 @@ int main(int argc, char **argv) {
   //  const double const_bondi_Q = BONDI_Q;
   const double const_bondi_Q = 1.47132e-21;
   std::cout << "Bondi Q: " << const_bondi_Q << std::endl;
+  double central_mass = MASS_POINT_MASS;
 #endif
 
   //  for(unsigned int i = 0; i < 1000; ++i){
@@ -189,6 +270,8 @@ int main(int argc, char **argv) {
             << " K" << std::endl;
   std::cout << "Bondi radius: " << RBONDI << " ("
             << RBONDI * UNIT_LENGTH_IN_SI / AU_IN_SI << " AU)" << std::endl;
+  std::cout << "Ionized Bondi radius: " << RBONDI_ION << " ("
+            << RBONDI_ION * UNIT_LENGTH_IN_SI / AU_IN_SI << " AU)" << std::endl;
   std::cout << "Density at R_Bondi: "
             << bondi_density(RBONDI * UNIT_LENGTH_IN_SI / (20. * AU_IN_SI)) *
                    UNIT_DENSITY_IN_SI
@@ -246,12 +329,13 @@ int main(int argc, char **argv) {
     cells[i]._V = CELLSIZE;
     cells[i]._integer_dt = 0;
     cells[i]._dt = DT;
+    cells[i]._index = (i != 0 && i != ncell + 2) ? (i - 1) : ncell + 2;
   }
 
   // set up the initial condition
   initialize(cells, ncell);
 
-  const double courant_factor = 0.1;
+  const double courant_factor = 0.5;
 
   uint_fast64_t min_integer_dt = integer_maxtime;
 #pragma omp parallel for reduction(min : min_integer_dt)
@@ -270,7 +354,16 @@ int main(int argc, char **argv) {
     const double dt = courant_factor * cells[i]._V / cs;
     const uint_fast64_t integer_dt = (dt / maxtime) * integer_maxtime;
     min_integer_dt = std::min(min_integer_dt, integer_dt);
+    
+    cells[i]._last_rho = cells[i]._rho;
+    cells[i]._last_u = cells[i]._u;
+    cells[i]._last_P = cells[i]._P;
+    cells[i]._last_nfac = cells[i]._nfac;
+    cells[i]._last_entry = 0;
   }
+  
+  std::ofstream logfile("logfile.dat");
+  write_logfile(logfile, cells, ncell, 0.);
 
   // set cell time steps
   // round min_integer_dt to closest smaller power of 2
@@ -281,7 +374,11 @@ int main(int argc, char **argv) {
     cells[i]._dt = cells[i]._integer_dt * time_conversion_factor;
   }
 
-  // initialize the exact Riemann solver
+  // initialize boundary condition and ionization variables
+  boundary_conditions_initialize();
+  ionization_initialize();
+
+  // initialize the Riemann solver
   HLLCRiemannSolver solver(GAMMA);
 
   Timer step_time;
@@ -319,6 +416,8 @@ int main(int argc, char **argv) {
       const uint_fast64_t integer_dt = (dt / maxtime) * integer_maxtime;
       min_integer_dt = std::min(min_integer_dt, integer_dt);
     }
+    
+    write_logfile(logfile, cells, ncell, current_integer_time * time_conversion_factor);
 
     // round min_integer_dt to closest smaller power of 2
     global_integer_dt = round_power2_down(min_integer_dt);
@@ -346,12 +445,16 @@ int main(int argc, char **argv) {
       std::cout << "\t\t\tAverage time per step: " << avg_time_since_last
                 << " s" << std::endl;
       time_since_start += time_since_last;
-      const double time_to_go = time_since_start * 100. / pct;
+      const double time_to_go = time_since_start * (100. - pct) / pct;
       std::cout << "\t\t\tEstimated time to go: " << time_to_go << " s"
                 << std::endl;
+#if EOS == EOS_BONDI
+      std::cout << "\t\t\tCentral mass: " << central_mass << " ("
+                << (central_mass / MASS_POINT_MASS) << ")" << std::endl;
+#endif
       time_since_last = 0.;
       steps_since_last = 0;
-      write_snapshot(isnap, cells, ncell);
+      write_snapshot(isnap, current_integer_time * time_conversion_factor, cells, ncell);
       ++isnap;
     }
 
@@ -485,6 +588,9 @@ int main(int argc, char **argv) {
         cells[i]._m += dt * mflux;
         cells[i]._p += dt * pflux;
         cells[i]._E += dt * Eflux;
+        if (i == 1) {
+          flux_into_inner_mask(dt * mflux);
+        }
       }
       // right flux
       {
@@ -543,7 +649,7 @@ int main(int argc, char **argv) {
   }
 
   // write the final snapshot
-  write_snapshot(isnap, cells, ncell);
+  write_snapshot(isnap, current_integer_time * time_conversion_factor, cells, ncell);
   write_binary_snapshot(cells, ncell);
 
   delete[] cells;

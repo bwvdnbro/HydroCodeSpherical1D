@@ -90,6 +90,14 @@ public:
 
   /*! @brief Physical time step (in internal units of T). */
   double _dt;
+  
+  /// ADAPTIVE OUTPUT
+  uint_least16_t _index;
+  uint_least64_t _last_entry;
+  double _last_rho;
+  double _last_u;
+  double _last_P;
+  double _last_nfac;
 };
 
 #endif // CELL_HPP

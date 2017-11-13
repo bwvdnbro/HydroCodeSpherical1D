@@ -43,9 +43,21 @@
 #endif
 
 /**
+ * @brief Initialize ionization variables.
+ */
+#define ionization_initialize()
+
+/**
  * @brief Code to determine the neutral fraction of the cells.
  */
 #define do_ionization()
+
+/**
+ * @brief Code to handle the mass flux into the inner mask.
+ *
+ * @param mflux Mass flux into the inner mask.
+ */
+#define flux_into_inner_mask(mflux)
 
 /**
  * @brief Conversion function called during the primitive variable conversion
