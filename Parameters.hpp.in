@@ -30,7 +30,7 @@
 /*! @brief Minimum radius (in internal units of L). */
 #define RMIN 0.2
 /*! @brief Maximum radius (in internal units of L). */
-#define RMAX 2.
+#define RMAX 1.
 
 /*! @brief Default number of spherical shells (1D "cells") in between RMIN and
  *  RMAX. */

@@ -90,7 +90,7 @@ public:
 
   /*! @brief Physical time step (in internal units of T). */
   double _dt;
-  
+
   /// ADAPTIVE OUTPUT
   uint_least16_t _index;
   uint_least64_t _last_entry;

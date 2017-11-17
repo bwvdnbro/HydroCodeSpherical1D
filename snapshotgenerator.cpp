@@ -1,10 +1,10 @@
 #include <fstream>
 #include <iostream>
 #include <map>
-#include <vector>
 #include <sstream>
+#include <vector>
 
-enum LogEntry{
+enum LogEntry {
   LOGENTRY_DENSITY = 0,
   LOGENTRY_VELOCITY,
   LOGENTRY_PRESSURE,
@@ -12,7 +12,7 @@ enum LogEntry{
   NUMBER_OF_LOGENTRIES
 };
 
-struct Entry{
+struct Entry {
   unsigned long _previous_entry;
   unsigned short _index;
   LogEntry _entry;
@@ -20,19 +20,19 @@ struct Entry{
   double _value;
 };
 
-Entry read_entry(unsigned long position, std::ifstream &file){
+Entry read_entry(unsigned long position, std::ifstream &file) {
   file.seekg(position);
   Entry entry;
-  file.read(reinterpret_cast<char*>(&entry._previous_entry),
+  file.read(reinterpret_cast<char *>(&entry._previous_entry),
             sizeof(unsigned long));
-  file.read(reinterpret_cast<char*>(&entry._index), sizeof(unsigned short));
-  file.read(reinterpret_cast<char*>(&entry._entry), sizeof(int));
-  file.read(reinterpret_cast<char*>(&entry._time), sizeof(double));
-  file.read(reinterpret_cast<char*>(&entry._value), sizeof(double));
+  file.read(reinterpret_cast<char *>(&entry._index), sizeof(unsigned short));
+  file.read(reinterpret_cast<char *>(&entry._entry), sizeof(int));
+  file.read(reinterpret_cast<char *>(&entry._time), sizeof(double));
+  file.read(reinterpret_cast<char *>(&entry._value), sizeof(double));
   return entry;
 }
 
-void print_entry(const Entry &entry, std::ostream &out){
+void print_entry(const Entry &entry, std::ostream &out) {
   out << "Entry:\n";
   out << entry._previous_entry << "\n";
   out << entry._index << "\n";
@@ -42,13 +42,13 @@ void print_entry(const Entry &entry, std::ostream &out){
 }
 
 std::map<double, double> get_quantity(LogEntry type, unsigned short index,
-                                      std::ifstream &ifile){
+                                      std::ifstream &ifile) {
   const unsigned int lastpos = ifile.tellg();
   // find first entry for particle
   unsigned long pos = ifile.tellg();
   pos -= 30;
   Entry entry = read_entry(pos, ifile);
-  while(entry._index != index){
+  while (entry._index != index) {
     pos -= 30;
     entry = read_entry(pos, ifile);
   }
@@ -56,25 +56,25 @@ std::map<double, double> get_quantity(LogEntry type, unsigned short index,
   // now try to find the last entry containing the quantity of interest
   // (this is guaranteed to exist)
   long next_pos = pos - entry._previous_entry;
-  while(entry._entry != type){
+  while (entry._entry != type) {
     pos = next_pos;
     entry = read_entry(pos, ifile);
     next_pos = pos - entry._previous_entry;
   }
   // bingo: found last entry of interest
   std::map<double, double> table;
-  while(next_pos >= 0 && pos != next_pos && entry._index == index){
-    if(entry._entry == type){
+  while (next_pos >= 0 && pos != next_pos && entry._index == index) {
+    if (entry._entry == type) {
       table[entry._time] = entry._value;
-//      print_entry(entry, std::cout);
+      //      print_entry(entry, std::cout);
     }
     pos = next_pos;
     entry = read_entry(pos, ifile);
     next_pos = pos - entry._previous_entry;
   }
-  if(entry._index == index && entry._entry == type){
+  if (entry._index == index && entry._entry == type) {
     table[entry._time] = entry._value;
-//    print_entry(entry, std::cout);
+    //    print_entry(entry, std::cout);
   }
 
   // reset file
@@ -82,19 +82,19 @@ std::map<double, double> get_quantity(LogEntry type, unsigned short index,
   return table;
 }
 
-int main(int argc, char **argv){
+int main(int argc, char **argv) {
 
   std::ifstream ifile("logfile.dat", std::ios::binary | std::ios::ate);
   const unsigned long lastpos = ifile.tellg();
   Entry entry = read_entry(lastpos - 30, ifile);
   const double endtime = entry._time;
 
-  std::vector< std::vector<double> > snaps(10, std::vector<double>(1000, 0.));
+  std::vector<std::vector<double>> snaps(10, std::vector<double>(1000, 0.));
 
   const double snaptime = 0.1 * endtime;
-  for(unsigned int i = 0; i < 1000; ++i){
+  for (unsigned int i = 0; i < 1000; ++i) {
     std::map<double, double> table = get_quantity(LOGENTRY_DENSITY, i, ifile);
-    for(unsigned int j = 0; j < 10; ++j){
+    for (unsigned int j = 0; j < 10; ++j) {
       // find the time keys surrounding the snapshot time
       const double t = j * snaptime;
       auto upper_bound = table.upper_bound(t);
@@ -108,7 +108,7 @@ int main(int argc, char **argv){
     }
   }
 
-  for(unsigned int j = 0; j < 10; ++j){
+  for (unsigned int j = 0; j < 10; ++j) {
     std::stringstream filename;
     filename << "logsnap_";
     filename.fill('0');
@@ -116,7 +116,7 @@ int main(int argc, char **argv){
     filename << j;
     filename << ".txt";
     std::ofstream ofile(filename.str());
-    for(unsigned int i = 0; i < 1000; ++i){
+    for (unsigned int i = 0; i < 1000; ++i) {
       ofile << i * 0.001 << "\t" << snaps[j][i] << "\n";
     }
   }
