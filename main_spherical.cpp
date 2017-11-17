@@ -22,6 +22,7 @@
 #include "EOS.hpp"
 #include "HLLCRiemannSolver.hpp"
 #include "IC.hpp"
+#include "LogFile.hpp"
 #include "Potential.hpp"
 #include "RiemannSolver.hpp"
 #include "SafeParameters.hpp"
@@ -33,15 +34,11 @@
 #include <cfloat>
 #include <cmath>
 #include <cstdint>
-#include <cstring>
 #include <ctime>
-#include <fcntl.h>
 #include <fstream>
 #include <iostream>
 #include <omp.h>
 #include <sstream>
-#include <sys/mman.h>
-#include <unistd.h>
 
 //#define NO_LOGFILE
 
@@ -115,182 +112,6 @@ void write_binary_snapshot(const Cell *cells, const unsigned int ncell) {
   }
 }
 
-/**
- * @brief Custom version of the SWIFT dump struct.
- */
-class LogFile {
-public:
-  /* The memory-mapped data of this dump. */
-  void *_data;
-
-  /* The size of the memory-mapped data, in bytes. */
-  size_t _size;
-
-  /* The number of bytes that have been dumped. */
-  size_t _count;
-
-  /* The offset of the data within the current file. */
-  size_t _file_offset;
-
-  /* The file with which this memory is associated. */
-  int _fd;
-
-  /* Mask containing the significant bits for page addresses. */
-  size_t _page_mask;
-};
-
-/**
- * @brief Convert the given size in MB to a size in bytes.
- *
- * @param size_in_MB Size in MB.
- * @return Size in bytes.
- */
-static inline size_t MB_to_bytes(size_t size_in_MB) { return size_in_MB << 20; }
-
-/**
- * @brief Initialize the given LogFile instance.
- *
- * @param log LogFile to initialize.
- * @param filename Name of the log file in the file system.
- * @param size Size of the log file in memory. The log file stored on disk can
- * be (significantly) larger, but the part that is directly stored in memory
- * will be this size. Note that the actually allocated memory size might be
- * larger than this, since we can only memory-map regions with a system
- * dependent size.
- */
-static inline void initialize_log(LogFile &log, std::string filename,
-                                  size_t size) {
-  // create the file
-  // O_CREAT: create the file if it does not exist
-  // O_RDWR: read/write access
-  // S_IRUSR/IWUSR/IRGRP/IWGRP: set read/write access for both the user and
-  //  group when creating the file (code 0660 in the SWIFT code)
-  log._fd = open(filename.c_str(), O_CREAT | O_RDWR,
-                 S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
-  // get the page size and convert it into a page mask
-  // e.g. on a system with page size 4096:
-  //  sysconf(_SC_PAGE_SIZE) = ..0001 0000 0000 0000
-  //  ANS - 1                = ..0000 1111 1111 1111
-  //  ~ANS = page_mask       = ..1111 0000 0000 0000
-  const size_t page_mask = ~(sysconf(_SC_PAGE_SIZE) - 1);
-  // make sure the requested size is a multiple of the page size (as this is
-  // required for mmap()
-  // e.g. size = 5
-  //  size + ~page_mask = 101 + 1111 1111 1111
-  //                    = 1 0000 0000 0100
-  //  (ANS) & mask      = 1 0000 0000 0000
-  //                    = page_size
-  // e.g. size = page_size + 2
-  //  size + ~page_mask = 1 0000 0000 0010 + 1111 1111 1111
-  //                    = 10 0000 0000 0010
-  //  (ANS) & mask      = 10 0000 0000 0000
-  //                    = 2 * page_size
-  size = (size + ~page_mask) & page_mask;
-  // make sure we have enough space on disk to store the memory mapped file
-  // this preallocates the file size without actually writing anything
-  // we tell the call we want all file offsets between 0 and size to be
-  // available after this call
-  posix_fallocate(log._fd, 0, size);
-  // memory-map the file: make a synced copy of some part of the file in active
-  // memory that we can directly access as if it was normal memory
-  // parameters:
-  //  nullptr: let the system decide where to allocate the memory
-  //  size: size of the buffer we want to memory-map (should be a multiple of
-  //   page_size!)
-  //  PROT_WRITE: we want to write to the buffer
-  //  MAP_SHARED: we want to share the memory with all other processes: every
-  //   write to this region is synced in the file and directly reflected in all
-  //   other processes that memory map the same region
-  //  log._fd: this is the file we want to memory-map
-  //  0: we want to start memory mapping from offset 0 in the file
-  log._data = mmap(nullptr, size, PROT_WRITE, MAP_SHARED, log._fd, 0);
-  // initialize the size of the memory mapped region, the number of bytes
-  // already written to it, the current offset in the file and the page_mask
-  // (which is used later to increase the file size)
-  log._size = size;
-  log._count = 0;
-  log._file_offset = 0;
-  log._page_mask = page_mask;
-}
-
-/**
- * @brief Increase the size of the given log file.
- *
- * This will grow the size of the file on disk and will reset the part of the
- * file that is directly mapped in memory.
- *
- * @param log LogFile.
- */
-static inline void resize_log(LogFile &log) {
-  // truncate the number of bytes already written to the file to a multiple of
-  // the page size
-  // we will shift the memory-mapped region to this point
-  const size_t trunc_count = log._count & log._page_mask;
-  // unmap the part of the memory-mapped region before trunc_count
-  // if nothing was written to the file, we provide 1, which is rounded up to
-  // a single page size
-  munmap(log._data, trunc_count > 0 ? trunc_count : 1);
-  // increase the file offset, which indicates the offset of the memory-mapped
-  // region within the file on disk
-  log._file_offset += trunc_count;
-  // subtract the unmapped region from the counter that counts the bytes already
-  // written to the mapped region
-  log._count -= trunc_count;
-  // make sure we have enough disk space for the next bit of log file
-  posix_fallocate(log._fd, log._file_offset, log._size);
-  // map the new bit of file
-  // parameters are the same as above, but now we start from a later offset in
-  // the file
-  log._data = mmap(nullptr, log._size, PROT_WRITE, MAP_SHARED, log._fd,
-                   log._file_offset);
-}
-
-/**
- * @brief Force synchronization between the memory-mapped log file and the
- * contents of the log file on disk.
- *
- * @param log LogFile.
- */
-static inline void force_log_sync(LogFile &log) {
-  // make sure the memory-mapped region is synced on disk
-  // parameters:
-  //  log._data: pointer to the beginning of the region we want synced
-  //  log._count: number of bytes after that pointer we want to be synced
-  //  MS_SYNC: force actual writing to disk and wait until it is finished
-  msync(log._data, log._count, MS_SYNC);
-}
-
-/**
- * @brief Close the log file.
- *
- * This method also ensures the file has its definitive file size on disk (more
- * space might be allocated then necessary during the run).
- *
- * @param log LogFile.
- */
-static inline void close_log(LogFile &log) {
-  // unmap the actively memory-mapped region of the file
-  munmap(log._data, log._count);
-  // shrink the file to its actual size
-  ftruncate(log._fd, log._file_offset + log._count);
-  // close the file
-  close(log._fd);
-}
-
-/**
- * @brief Write the given value to the given log file.
- *
- * @param log LogFile.
- * @param value Value to write.
- */
-template <typename _type_>
-static inline void write_log(LogFile &log, _type_ value) {
-  const size_t vsize = sizeof(_type_);
-  const size_t offset = log._count;
-  log._count += vsize;
-  memcpy(log._data + offset, &value, vsize);
-}
-
 enum LogEntry {
   LOGENTRY_DENSITY = 0,
   LOGENTRY_VELOCITY,
@@ -347,15 +168,13 @@ static inline void write_logfile(LogFile &log, Cell *cells,
     for (uint_fast16_t i = 1; i < ncell + 1; ++i) {
       for (int logentry = 0; logentry < NUMBER_OF_LOGENTRIES; ++logentry) {
         unsigned long previous_entry = cells[i]._last_entry;
-        cells[i]._last_entry = log._count;
+        cells[i]._last_entry = log.get_current_position();
         previous_entry = cells[i]._last_entry - previous_entry;
-        double timecopy = time;
-        double value = get_value(logentry, cells[i]);
-        write_log(log, previous_entry);
-        write_log(log, cells[i]._index);
-        write_log(log, logentry);
-        write_log(log, timecopy);
-        write_log(log, value);
+        log.write(previous_entry);
+        log.write(cells[i]._index);
+        log.write(logentry);
+        log.write(time);
+        log.write(get_value(logentry, cells[i]));
       }
     }
   } else {
@@ -364,15 +183,13 @@ static inline void write_logfile(LogFile &log, Cell *cells,
       for (int logentry = 0; logentry < NUMBER_OF_LOGENTRIES; ++logentry) {
         if (changed(logentry, cells[i])) {
           unsigned long previous_entry = cells[i]._last_entry;
-          cells[i]._last_entry = log._count;
+          cells[i]._last_entry = log.get_current_position();
           previous_entry = cells[i]._last_entry - previous_entry;
-          double timecopy = time;
-          double value = get_value(logentry, cells[i]);
-          write_log(log, previous_entry);
-          write_log(log, cells[i]._index);
-          write_log(log, logentry);
-          write_log(log, timecopy);
-          write_log(log, value);
+          log.write(previous_entry);
+          log.write(cells[i]._index);
+          log.write(logentry);
+          log.write(time);
+          log.write(get_value(logentry, cells[i]));
         }
       }
     }
@@ -546,8 +363,7 @@ int main(int argc, char **argv) {
   }
 
   //  std::ofstream logfile("logfile.dat");
-  LogFile logfile;
-  initialize_log(logfile, "logfile.dat", MB_to_bytes(100));
+  LogFile logfile("logfile.dat", 100);
   write_logfile(logfile, cells, ncell, 0., true);
 
   // set cell time steps
@@ -839,7 +655,7 @@ int main(int argc, char **argv) {
   write_logfile(logfile, cells, ncell,
                 current_integer_time * time_conversion_factor, true);
 
-  close_log(logfile);
+  logfile.close_file();
 
   // write the final snapshot
   write_snapshot(isnap, current_integer_time * time_conversion_factor, cells,
