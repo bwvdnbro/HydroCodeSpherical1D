@@ -592,8 +592,11 @@ int main(int argc, char **argv) {
       const double rhoextmax = std::max(rho_ext_min, rho_ext_plu);
       const double rhoextmin = std::min(rho_ext_min, rho_ext_plu);
       const double alpha_rho =
-          std::min(1., 0.5 * std::min((rhomax - cells[i]._rho) / rhoextmax,
-                                      (rhomin - cells[i]._rho) / rhoextmin));
+          (gradrho > 0.)
+              ? std::min(1.,
+                         0.5 * std::min((rhomax - cells[i]._rho) / rhoextmax,
+                                        (rhomin - cells[i]._rho) / rhoextmin))
+              : 1.;
       cells[i]._grad_rho = alpha_rho * gradrho;
 
       const double gradu = (cells[i + 1]._u - cells[i - 1]._u) * dx_inv;
@@ -604,8 +607,10 @@ int main(int argc, char **argv) {
       const double uextmax = std::max(u_ext_min, u_ext_plu);
       const double uextmin = std::min(u_ext_min, u_ext_plu);
       const double alpha_u =
-          std::min(1., 0.5 * std::min((umax - cells[i]._u) / uextmax,
-                                      (umin - cells[i]._u) / uextmin));
+          (gradu > 0.)
+              ? std::min(1., 0.5 * std::min((umax - cells[i]._u) / uextmax,
+                                            (umin - cells[i]._u) / uextmin))
+              : 1.;
       cells[i]._grad_u = alpha_u * gradu;
 
       const double gradP = (cells[i + 1]._P - cells[i - 1]._P) * dx_inv;
@@ -616,8 +621,10 @@ int main(int argc, char **argv) {
       const double Pextmax = std::max(P_ext_min, P_ext_plu);
       const double Pextmin = std::min(P_ext_min, P_ext_plu);
       const double alpha_P =
-          std::min(1., 0.5 * std::min((Pmax - cells[i]._P) / Pextmax,
-                                      (Pmin - cells[i]._P) / Pextmin));
+          (gradP > 0.)
+              ? std::min(1., 0.5 * std::min((Pmax - cells[i]._P) / Pextmax,
+                                            (Pmin - cells[i]._P) / Pextmin))
+              : 1.;
       cells[i]._grad_P = alpha_P * gradP;
     }
 
@@ -645,7 +652,10 @@ int main(int argc, char **argv) {
       const double P = cells[i]._P;
       cells[i]._rho -=
           half_dt * (rho * cells[i]._grad_u + u * cells[i]._grad_rho);
-      cells[i]._u -= half_dt * (u * cells[i]._grad_u + cells[i]._grad_P / rho);
+      if (rho > 0.) {
+        cells[i]._u -=
+            half_dt * (u * cells[i]._grad_u + cells[i]._grad_P / rho);
+      }
       cells[i]._P -=
           half_dt * (GAMMA * P * cells[i]._grad_u + u * cells[i]._grad_P);
 
