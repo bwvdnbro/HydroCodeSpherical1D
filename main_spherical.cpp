@@ -317,7 +317,8 @@ int main(int argc, char **argv) {
 
 #if EOS == EOS_ISOTHERMAL || EOS == EOS_BONDI
   std::cout << "Newton G: "
-            << G * (UNIT_LENGTH_IN_SI * UNIT_LENGTH_IN_SI * UNIT_LENGTH_IN_SI /
+            << G_INTERNAL *
+                   (UNIT_LENGTH_IN_SI * UNIT_LENGTH_IN_SI * UNIT_LENGTH_IN_SI /
                     UNIT_MASS_IN_SI / UNIT_TIME_IN_SI / UNIT_TIME_IN_SI)
             << " m^3 kg^-1 s^-2" << std::endl;
   std::cout << "ISOTHERMAL_C_SQUARED: " << ISOTHERMAL_C_SQUARED << std::endl;

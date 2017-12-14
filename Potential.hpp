@@ -38,7 +38,7 @@
        with an isothermal eos, in which case the total energy is ignored by    \
        the hydro scheme */                                                     \
     /*const double r = cells[i]._midpoint;                                     \
-    const double a = -G * MASS_POINT_MASS / (r * r);                           \
+    const double a = -G_INTERNAL * MASS_POINT_MASS / (r * r);                  \
     cells[i]._a = a;                                                           \
     const double m = cells[i]._V * cells[i]._rho;                              \
     cells[i]._p += 0.5 * DT * a * m; \*/                                       \

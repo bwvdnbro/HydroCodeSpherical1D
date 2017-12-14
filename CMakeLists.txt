@@ -26,61 +26,38 @@ set(SOURCES
     RiemannSolver.hpp
 )
 
+# macro that checks if a configuration value was set on the command line
+# if not, the default value is set and a warning is printed
+# we also print the actual value that is used
+macro(check_configuration_option option_name option_default_value)
+  if(NOT DEFINED ${option_name})
+    message(STATUS "Using default ${option_name}")
+    set(${option_name} ${option_default_value})
+  endif(NOT DEFINED ${option_name})
+  message(STATUS "${option_name}: ${${option_name}}")
+endmacro(check_configuration_option)
+
 # Configurable parameters
 
-if(NOT DEFINED ic)
-  message(STATUS "Using default ic")
-  set(ic "IC_FILE")
-endif(NOT DEFINED ic)
-message(STATUS "IC: ${ic}")
-
-if(NOT DEFINED gamma)
-  message(STATUS "Using default gamma")
-  set(gamma 1.001)
-endif(NOT DEFINED gamma)
-message(STATUS "Gamma: ${gamma}")
-
-if(NOT DEFINED dt)
-  message(STATUS "Using default dt")
-  set(dt 0.00001)
-endif(NOT DEFINED dt)
-message(STATUS "Dt: ${dt}")
-
-if(NOT DEFINED nstep)
-  message(STATUS "Using default nstep")
-  set(nstep 200000)
-endif(NOT DEFINED nstep)
-message(STATUS "Nstep: ${nstep}")
-
-if(NOT DEFINED snapstep)
-  message(STATUS "Using default snapstep")
-  set(snapstep 200)
-endif(NOT DEFINED snapstep)
-message(STATUS "Snapstep: ${snapstep}")
-
-if(NOT DEFINED nstep_relax)
-  message(STATUS "Using default nstep_relax")
-  set(nstep_relax 0)
-endif(NOT DEFINED nstep_relax)
-message(STATUS "Nstep_relax: ${nstep_relax}")
-
-if(NOT DEFINED eos)
-  message(STATUS "Using default eos")
-  set(eos "EOS_BONDI")
-endif(NOT DEFINED eos)
-message(STATUS "EOS: ${eos}")
-
-if(NOT DEFINED bondi_density_exponent)
-  message(STATUS "Using default bondi_density_exponent")
-  set(bondi_density_exponent 1.2)
-endif(NOT DEFINED bondi_density_exponent)
-message(STATUS "Bondi_density_exponent: ${bondi_density_exponent}")
-
-if(NOT DEFINED bondi_velocity_exponent)
-  message(STATUS "Using default bondi_velocity_exponent")
-  set(bondi_velocity_exponent 0.8)
-endif(NOT DEFINED bondi_velocity_exponent)
-message(STATUS "Bondi_velocity_exponent: ${bondi_velocity_exponent}")
+check_configuration_option(rmin_in_au 10.)
+check_configuration_option(rmax_in_au 100.)
+check_configuration_option(ncell 2700)
+check_configuration_option(gamma 1.001)
+check_configuration_option(maxtime_in_yr 80.)
+check_configuration_option(number_of_snaps 4000)
+check_configuration_option(ic "IC_FILE")
+check_configuration_option(eos "EOS_BONDI")
+check_configuration_option(boundaries "BOUNDARIES_BONDI")
+check_configuration_option(isothermal_temperature_in_k 500.)
+check_configuration_option(potential "POTENTIAL_POINT_MASS")
+check_configuration_option(g_internal 1.)
+check_configuration_option(mass_point_mass_in_msol 18.)
+check_configuration_option(bondi_density_in_si 1.e-16)
+check_configuration_option(bondi_pressure_contrast 32.)
+check_configuration_option(ic_file_name "ic.dat")
+check_configuration_option(initial_ionization_radius_in_au 30.)
+check_configuration_option(unit_mass_in_si 2.479e31)
+check_configuration_option(unit_length_in_si 1.2e13)
 
 configure_file(${PROJECT_SOURCE_DIR}/Parameters.hpp.in
                ${PROJECT_SOURCE_DIR}/Parameters.hpp @only)

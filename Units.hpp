@@ -50,8 +50,9 @@
 
 /*! @brief Time unit (in s). */
 #define UNIT_TIME_IN_SI                                                        \
-  std::sqrt(G *UNIT_LENGTH_IN_SI *UNIT_LENGTH_IN_SI *UNIT_LENGTH_IN_SI /       \
-            (UNIT_MASS_IN_SI * NEWTON_G_IN_SI))
+  std::sqrt(                                                                   \
+      G_INTERNAL *UNIT_LENGTH_IN_SI *UNIT_LENGTH_IN_SI *UNIT_LENGTH_IN_SI /    \
+      (UNIT_MASS_IN_SI * NEWTON_G_IN_SI))
 
 /*! @brief Density unit (in kg m^-3). */
 #define UNIT_DENSITY_IN_SI                                                     \

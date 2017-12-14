@@ -27,45 +27,51 @@
 #ifndef PARAMETERS_HPP
 #define PARAMETERS_HPP
 
-/*! @brief Minimum radius (in AU). */
-#define RMIN_IN_AU 10.
-/*! @brief Maximum radius (in AU). */
-#define RMAX_IN_AU 100.
+/*! @brief Minimum radius (in AU; set by the configuration). */
+#define RMIN_IN_AU (@rmin_in_au@)
+
+/*! @brief Maximum radius (in AU; set by the configuration). */
+#define RMAX_IN_AU (@rmax_in_au@)
 
 /*! @brief Default number of spherical shells (1D "cells") in between RMIN and
- *  RMAX. Can be overwritten by a command line parameter. */
-#define NCELL 2700
-/*! @brief Polytropic index (set by the configuration). */
-#define GAMMA @gamma@
+ *  RMAX (set by configuration). Can be overwritten by a command line
+ *  parameter. */
+#define NCELL (@ncell@)
 
-/*! @brief Maximum simulation time (in years). */
-#define MAXTIME_IN_YR 80.
-/*! @brief Number of snapshots to write during the simulation. */
-#define NUMBER_OF_SNAPS 4000
+/*! @brief Polytropic index (set by the configuration). */
+#define GAMMA (@gamma@)
+
+/*! @brief Maximum simulation time (in years; set by the configuration). */
+#define MAXTIME_IN_YR (@maxtime_in_yr@)
+
+/*! @brief Number of snapshots to write during the simulation (set by the
+ *  configuration). */
+#define NUMBER_OF_SNAPS (@number_of_snaps@)
 
 /*! @brief Default width of the ionization transition region (in internal units
  *  of L). */
 #define IONIZATION_TRANSITION_WIDTH (1.5 * 0.05)
 
-/*! @brief Choice of boundary conditions. */
-#define BOUNDARIES BOUNDARIES_BONDI
+/*! @brief Choice of boundary conditions (set by the configuration). */
+#define BOUNDARIES @boundaries@
 
 /*! @brief Choice of equation of state (set by the configuration). */
 #define EOS @eos@
 
-/*! @brief Constant temperature in the neutral region (in K). */
-#define ISOTHERMAL_TEMPERATURE 500.
+/*! @brief Constant temperature in the neutral region (in K; set by the
+ *  configuration). */
+#define ISOTHERMAL_TEMPERATURE_IN_K (@isothermal_temperature_in_k@)
 
-/*! @brief Choice of external potential. */
-#define POTENTIAL POTENTIAL_POINT_MASS
+/*! @brief Choice of external potential (set by the configuration). */
+#define POTENTIAL @potential@
 
 /*! @brief Value for Newton's gravity constant (in internal units of L^3 M^-1
- *  T^-2). */
-#define G 1.
+ *  T^-2; set by the configuration). */
+#define G_INTERNAL (@g_internal@)
 
-/*! @brief Mass of the point mass (if POTENTIAL_POINT_MASS is selected, in
- *  solar masses. */
-#define MASS_POINT_MASS_IN_MSOL 18.
+/*! @brief Mass of the point mass (if POTENTIAL_POINT_MASS is selected; in
+ *  solar masses; set by the configuration). */
+#define MASS_POINT_MASS_IN_MSOL (@mass_point_mass_in_msol@)
 
 /*! @brief Switch off gradients (reduce to first order hydro scheme). */
 //#define NO_GRADIENTS
@@ -73,23 +79,25 @@
 /*! @brief Choice of initial conditions (set by the configuration). */
 #define IC @ic@
 
-/*! @brief Central density of the Bondi set up (in kg m^-3). */
-#define BONDI_DENSITY_IN_SI (1.e-16)
+/*! @brief Central density of the Bondi set up (in kg m^-3; set by the
+ *  configuration). */
+#define BONDI_DENSITY_IN_SI (@bondi_density_in_si@)
 
-/*! @brief Default pressure contrast between ionised and neutral region. */
-#define BONDI_PRESSURE_CONTRAST 32.
+/*! @brief Default pressure contrast between ionised and neutral region (set by
+ *  the configuration). */
+#define BONDI_PRESSURE_CONTRAST (@bondi_pressure_contrast@)
 
 /*! @brief Default name of the initial condition file (if IC_FILE is
- *  selected). */
-#define IC_FILE_NAME "ic_1000.dat"
+ *  selected; set by the configuration). */
+#define IC_FILE_NAME "@ic_file_name@"
 
-/*! @brief Initial ionization radius (in AU). */
-#define INITIAL_IONIZATION_RADIUS_IN_AU 30.
+/*! @brief Initial ionization radius (in AU; set by the configuration). */
+#define INITIAL_IONIZATION_RADIUS_IN_AU (@initial_ionization_radius_in_au@)
 
-/*! @brief Mass unit (in kg). */
-#define UNIT_MASS_IN_SI 2.479e31
+/*! @brief Mass unit (in kg; set by the configuration). */
+#define UNIT_MASS_IN_SI (@unit_mass_in_si@)
 
-/*! @brief Length unit (in m). */
-#define UNIT_LENGTH_IN_SI 1.2e13
+/*! @brief Length unit (in m; set by the configuration). */
+#define UNIT_LENGTH_IN_SI (@unit_length_in_si@)
 
 #endif // PARAMETERS_HPP

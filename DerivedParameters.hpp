@@ -60,7 +60,7 @@
 /*! @brief Isothermal sound speed squared in the neutral region (if
  *  EOS_ISOTHERMAL is selected, in internal units of L T^-1). */
 #define ISOTHERMAL_C_SQUARED                                                   \
-  (ISOTHERMAL_TEMPERATURE * BOLTZMANN_K_IN_SI / HYDROGEN_MASS_IN_SI /          \
+  (ISOTHERMAL_TEMPERATURE_IN_K * BOLTZMANN_K_IN_SI / HYDROGEN_MASS_IN_SI /     \
    UNIT_VELOCITY_IN_SI / UNIT_VELOCITY_IN_SI)
 
 #endif // DERIVEDPARAMETERS_HPP

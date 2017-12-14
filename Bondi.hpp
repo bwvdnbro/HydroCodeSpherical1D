@@ -37,7 +37,7 @@
 #define BONDI_DENSITY (BONDI_DENSITY_IN_SI / UNIT_DENSITY_IN_SI)
 
 /*! @brief Neutral Bondi radius (in internal units of L). */
-#define RBONDI (0.5 * G * MASS_POINT_MASS / ISOTHERMAL_C_SQUARED)
+#define RBONDI (0.5 * G_INTERNAL * MASS_POINT_MASS / ISOTHERMAL_C_SQUARED)
 
 // equation of state functionality for EOS_BONDI
 #if EOS == EOS_BONDI
@@ -438,7 +438,7 @@ inline static double get_neutral_fraction(const double rmin, const double rmax,
     cells[i]._u = bondi_velocity(r_inv);                                       \
     cells[i]._P = ISOTHERMAL_C_SQUARED * BONDI_DENSITY;                        \
     const double r2 = cells[i]._midpoint * cells[i]._midpoint;                 \
-    cells[i]._a = -G * MASS_POINT_MASS / r2;                                   \
+    cells[i]._a = -G_INTERNAL * MASS_POINT_MASS / r2;                          \
     cells[i]._nfac = 0.;                                                       \
   }
 
