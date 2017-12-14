@@ -30,6 +30,7 @@
  * @brief Initialize the given cells.
  *
  * @param cells Cells to initialize.
+ * @param ncell Number of cells.
  */
 #define initialize(cells, ncell)                                               \
   _Pragma("omp parallel for") for (unsigned int i = 1; i < ncell + 1; ++i) {   \

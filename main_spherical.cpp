@@ -19,7 +19,7 @@
 // project includes
 #include "Bondi.hpp"             // for EOS_BONDI, BOUNDARIES_BONDI, IC_BONDI
 #include "Boundaries.hpp"        // for non Bondi boundary conditions
-#include "Cell.hpp"              // cell structure
+#include "Cell.hpp"              // Cell class
 #include "EOS.hpp"               // for non Bondi equations of state
 #include "HLLCRiemannSolver.hpp" // fast HLLC Riemann solver
 #include "IC.hpp"                // general initial condition interface
@@ -328,10 +328,8 @@ int main(int argc, char **argv) {
             << ISOTHERMAL_C_SQUARED * HYDROGEN_MASS_IN_SI *
                    UNIT_VELOCITY_IN_SI * UNIT_VELOCITY_IN_SI / BOLTZMANN_K_IN_SI
             << " K" << std::endl;
-  std::cout << "Bondi radius: " << RBONDI << " ("
+  std::cout << "Neutral Bondi radius: " << RBONDI << " ("
             << RBONDI * UNIT_LENGTH_IN_SI / AU_IN_SI << " AU)" << std::endl;
-  std::cout << "Ionized Bondi radius: " << RBONDI_ION << " ("
-            << RBONDI_ION * UNIT_LENGTH_IN_SI / AU_IN_SI << " AU)" << std::endl;
   std::cout << "Density at R_Bondi: "
             << bondi_density(RBONDI * UNIT_LENGTH_IN_SI / (20. * AU_IN_SI)) *
                    UNIT_DENSITY_IN_SI
@@ -692,6 +690,9 @@ int main(int argc, char **argv) {
         cells[i]._m += dt * mflux;
         cells[i]._p += dt * pflux;
         cells[i]._E += dt * Eflux;
+
+        // call a special function for flux that crosses the inner outflow
+        // boundary. This currently does not do anything.
         if (i == 1) {
           flux_into_inner_mask(dt * mflux);
         }

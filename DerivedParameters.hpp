@@ -29,25 +29,36 @@
 #include "PhysicalConstants.hpp"
 #include "Units.hpp"
 
+/*! @brief Inner boundary radius (in internal units of L). */
 #define RMIN (RMIN_IN_AU * AU_IN_SI / UNIT_LENGTH_IN_SI)
+
+/*! @brief Outer boundary radius (in internal units of L). */
 #define RMAX (RMAX_IN_AU * AU_IN_SI / UNIT_LENGTH_IN_SI)
 
+/*! @brief Maximum simulation time (in internal units of T). */
 #define MAXTIME (MAXTIME_IN_YR * YEAR_IN_SI / UNIT_TIME_IN_SI)
 
+/*! @brief Mass of the central point mass (in internal units of M). */
 #define MASS_POINT_MASS                                                        \
   (MASS_POINT_MASS_IN_MSOL * SOLAR_MASS_IN_SI / UNIT_MASS_IN_SI)
 
+/*! @brief Initial ionisation radius (in internal units of L). */
 #define INITIAL_IONIZATION_RADIUS                                              \
   (INITIAL_IONIZATION_RADIUS_IN_AU * AU_IN_SI / UNIT_LENGTH_IN_SI)
 
 /*! @brief Size of the simulation "box" (in internal units of L). */
 #define BOXSIZE (RMAX - RMIN)
+
+/*! @brief Size of a single "cell" of the simulation (in internal units of
+ *  L). */
+#define CELLSIZE (BOXSIZE / ncell)
+
 /*! @brief Half the size of a single "cell" of the simulation (in internal units
  *  of L). */
-#define CELLSIZE (BOXSIZE / ncell)
 #define HALF_CELLSIZE (0.5 * CELLSIZE)
-/*! @brief Isothermal sound speed squared (if EOS_ISOTHERMAL is selected, in
- *  internal units of L T^-1). */
+
+/*! @brief Isothermal sound speed squared in the neutral region (if
+ *  EOS_ISOTHERMAL is selected, in internal units of L T^-1). */
 #define ISOTHERMAL_C_SQUARED                                                   \
   (ISOTHERMAL_TEMPERATURE * BOLTZMANN_K_IN_SI / HYDROGEN_MASS_IN_SI /          \
    UNIT_VELOCITY_IN_SI / UNIT_VELOCITY_IN_SI)

@@ -32,6 +32,7 @@
  * @brief Initialize the given cells.
  *
  * @param cells Cells to initialize.
+ * @param ncell Number of cells.
  */
 #define initialize(cells, ncell)                                               \
   /* open the initial condition file */                                        \

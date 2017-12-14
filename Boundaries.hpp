@@ -26,13 +26,18 @@
 #ifndef BOUNDARIES_HPP
 #define BOUNDARIES_HPP
 
-// Bondi specific boundary conditions are in Bondi.hpp
 #if BOUNDARIES == BOUNDARIES_BONDI
+
+// Bondi specific boundary conditions are in Bondi.hpp
 #include "Bondi.hpp"
-#else
+
+#else // BOUNDARIES == BOUNDARIES_BONDI
 
 /**
  * @brief Initialize variables used for the boundary conditions.
+ *
+ * Open or reflective boundaries don't have associated variables, so this method
+ * does nothing.
  */
 #define boundary_conditions_initialize()
 
@@ -41,6 +46,7 @@
  */
 #if BOUNDARIES == BOUNDARIES_OPEN
 #define boundary_conditions_primitive_variables()                              \
+  /* just mirror the values across the boundary */                             \
   cells[0]._rho = cells[1]._rho;                                               \
   cells[0]._u = cells[1]._u;                                                   \
   cells[0]._P = cells[1]._P;                                                   \
@@ -49,9 +55,10 @@
   cells[ncell + 1]._P = cells[ncell]._P;
 #elif BOUNDARIES == BOUNDARIES_REFLECTIVE
 #define boundary_conditions_primitive_variables()                              \
+  /* mirror the variables and reverse the sign of the velocity */              \
   cells[0]._rho = cells[1]._rho;                                               \
   cells[0]._u = -cells[1]._u;                                                  \
-  cells[0]._P = ISOTHERMAL_C_SQUARED * cells[1]._rho;                          \
+  cells[0]._P = cells[1]._P;                                                   \
   cells[ncell + 1]._rho = cells[ncell]._rho;                                   \
   cells[ncell + 1]._u = -cells[ncell]._u;                                      \
   cells[ncell + 1]._P = cells[ncell]._P;
@@ -62,6 +69,7 @@
  */
 #if BOUNDARIES == BOUNDARIES_OPEN
 #define boundary_conditions_gradients()                                        \
+  /* just mirror the gradients across the boundary */                          \
   cells[0]._grad_rho = cells[1]._grad_rho;                                     \
   cells[0]._grad_u = cells[1]._grad_u;                                         \
   cells[0]._grad_P = cells[1]._grad_P;                                         \
@@ -70,7 +78,9 @@
   cells[ncell + 1]._grad_P = cells[ncell + 1]._grad_P;
 #elif BOUNDARIES == BOUNDARIES_REFLECTIVE
 #define boundary_conditions_gradients()                                        \
-  cells[0]._grad_rho = cells[1]._grad_rho;                                     \
+  /* reverse the sign of the gradients and do some magic to get an accurate    \
+     gradient for the velocities */                                            \
+  cells[0]._grad_rho = -cells[1]._grad_rho;                                    \
   cells[0]._grad_u =                                                           \
       -cells[1]._grad_u - cells[1]._grad_u -                                   \
       4. * cells[0]._u / (cells[0]._midpoint - cells[1]._midpoint);            \
@@ -83,6 +93,6 @@
   cells[ncell + 1]._grad_P = -cells[ncell]._grad_P;
 #endif
 
-#endif
+#endif // BOUNDARIES == BOUNDARIES_BONDI
 
 #endif // BOUNDARIES_HPP

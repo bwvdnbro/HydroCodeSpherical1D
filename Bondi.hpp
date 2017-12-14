@@ -19,64 +19,57 @@
 /**
  * @file Bondi.hpp
  *
- * @brief Bondi solution expressions.
+ * @brief All Bondi problem specific code.
  *
  * @author Bert Vandenbroucke (bv7@st-andrews.ac.uk)
  */
 #ifndef BONDI_HPP
 #define BONDI_HPP
 
-#include "Cell.hpp"
-#include "LambertW.hpp"
-#include "SafeParameters.hpp"
+#include "Cell.hpp"           // Cell classe
+#include "LambertW.hpp"       // Lambert W function implementation
+#include "SafeParameters.hpp" // Safe way to include Parameters.hpp
 
 #include <cmath>
 
+/*! @brief Bondi density: density at the neutral Bondi radius (in internal units
+ *  of M L^-3). */
 #define BONDI_DENSITY (BONDI_DENSITY_IN_SI / UNIT_DENSITY_IN_SI)
 
-/*! @brief Bondi radius (in internal units of L). */
+/*! @brief Neutral Bondi radius (in internal units of L). */
 #define RBONDI (0.5 * G * MASS_POINT_MASS / ISOTHERMAL_C_SQUARED)
-#define RBONDI_ION                                                             \
-  (0.5 * G * MASS_POINT_MASS / (bondi_pressure_contrast * ISOTHERMAL_C_SQUARED))
 
-/*! @brief Bondi central density squared (in internal units of M^2 L^-6). */
-#define BONDI_DENSITY2 (BONDI_DENSITY * BONDI_DENSITY)
-
-/*! @brief \f$3-2E\f$, with \f$E\f$ the Bondi density exponent. */
-#define BONDI_THREE_MINUS_TWO_BONDI_DENSITY_EXPONENT                           \
-  (3. - 2. * BONDI_DENSITY_EXPONENT)
-
-/*! @brief Total ionizing luminosity outside the mask, assuming an initial
- *  ionization radius with a given value, and assuming the initial density
- *  profile is the Bondi profile with the given exponent and central density (in
- *  internal units of M^2 L^-3). */
-#define BONDI_Q (bondi_Q(INITIAL_IONIZATION_RADIUS) - bondi_Q(RMIN))
-
+// equation of state functionality for EOS_BONDI
 #if EOS == EOS_BONDI
 
 /**
- * @brief Initialize ionization variables.
+ * @brief Initialize ionisation variables.
+ *
+ * We need to initialize the smooth transition (if LINEAR_TRANSITION was
+ * selected when configuring the code), and the ionising luminosity.
+ * We also open the log file in which we will write the ionisation radius as a
+ * function of time.
  */
 #define ionization_initialize()                                                \
   double rion_old = 0.;                                                        \
                                                                                \
   std::ofstream bondi_rfile("ionization_radius.dat");                          \
-  /*bondi_rfile << "# time (s)\tionization radius (m)\n";*/                    \
                                                                                \
   const double bondi_S =                                                       \
       (transition_width > 0.) ? 3. / (4. * transition_width) : 0.;             \
   const double bondi_A = -32. * bondi_S * bondi_S * bondi_S / 27.;             \
                                                                                \
-  const double bondi_rmin = RMIN - CELLSIZE;                                   \
-  /*const double bondi_volume_correction_factor = 4. * M_PI / 3. / CELLSIZE *  \
+  /* correction factor to grow the central mass with the accreted material     \
+     currently disabled */                                                     \
+  /*const double bondi_rmin = RMIN - CELLSIZE;                                 \
+  const double bondi_volume_correction_factor = 4. * M_PI / 3. / CELLSIZE *    \
     (RMIN * RMIN * RMIN - bondi_rmin * bondi_rmin * bondi_rmin);*/             \
   const double bondi_volume_correction_factor = 0.;                            \
   std::cout << "Bondi volume correction factor: "                              \
             << bondi_volume_correction_factor << std::endl;                    \
                                                                                \
-  /*const double const_bondi_Q = 1.47132e-21;*/                                \
-  std::cout << "Precomputing Bondi luminosity..." << std::endl;                \
-                                                                               \
+  /* set the Q value to the value that is needed to ionise out until the       \
+     requested ionisation radius */                                            \
   _Pragma("omp parallel for") for (uint_fast32_t i = 1; i < ncell + 1; ++i) {  \
     const double rmin = cells[i]._lowlim;                                      \
     const double rmax = cells[i]._uplim;                                       \
@@ -101,10 +94,16 @@
     }                                                                          \
   }                                                                            \
   std::cout << "Bondi Q: " << const_bondi_Q << std::endl;                      \
+  /* current value of the central mass (only used to increase the luminosity   \
+     over time). Currently not really used. */                                 \
   double central_mass = MASS_POINT_MASS;
 
 /**
  * @brief Set the initial value for the pressure of the given cell.
+ *
+ * We simply use the isothermal equation of state for this, as our scheme does
+ * not use the initial pressure anyway (it's only used to initialise the total
+ * energy, which is ignored in our integration scheme).
  *
  * @param cell Cell.
  */
@@ -113,6 +112,9 @@
 /**
  * @brief Conversion function called during the primitive variable conversion
  * for the given cell.
+ *
+ * This is the special equation of state that increase the pressure for ionised
+ * gas.
  *
  * @param cell Cell.
  */
@@ -124,8 +126,17 @@
 
 /**
  * @brief Code to determine the neutral fraction of the cells.
+ *
+ * This code does three loops over all cells (of which two are done in
+ * parallel):
+ *  - a first loop to compute the integrated density squared for each cell
+ *  - a second loop that figures out when the summed integrated density squared
+ *    equals the target luminosity and computes the ionisation radius
+ *  - a final loop that sets the neutral fraction once the ionisation radius is
+ *    known
  */
 #define do_ionization()                                                        \
+  /* first loop */                                                             \
   _Pragma("omp parallel for") for (uint_fast32_t i = 1; i < ncell + 1; ++i) {  \
     const double rmin = cells[i]._lowlim;                                      \
     const double rmax = cells[i]._uplim;                                       \
@@ -134,6 +145,8 @@
     cells[i]._nfac = Cshell;                                                   \
   }                                                                            \
                                                                                \
+  /* second loop */                                                            \
+  /* note that the get_bondi_Q_factor part defaults to 1 for now */            \
   double Cion =                                                                \
       const_bondi_Q * get_bondi_Q_factor(central_mass / MASS_POINT_MASS);      \
   double rion = 0.;                                                            \
@@ -155,6 +168,7 @@
       Cion -= ifac * cells[i]._nfac;                                           \
     }                                                                          \
   }                                                                            \
+  /* check if we need to write to the file */                                  \
   if (std::abs(rion - rion_old) > 1.e-2 * std::abs(rion + rion_old)) {         \
     const double curtime =                                                     \
         current_integer_time * time_conversion_factor * UNIT_TIME_IN_SI;       \
@@ -168,7 +182,10 @@
     bondi_rfile.flush();                                                       \
     rion_old = rion;                                                           \
   }                                                                            \
+  /* fix the ionisation radius. This should be a parameter... */               \
   /*rion = INITIAL_IONIZATION_RADIUS;*/                                        \
+                                                                               \
+  /* third loop */                                                             \
   const double rion_min = rion - 0.5 * transition_width;                       \
   const double rion_max = rion + 0.5 * transition_width;                       \
   _Pragma("omp parallel for") for (uint_fast32_t i = 1; i < ncell + 1; ++i) {  \
@@ -180,34 +197,32 @@
 /**
  * @brief Code to handle the mass flux into the inner mask.
  *
+ * We set bondi_volume_correction_factor to zero, so this code does not
+ * currently do anything.
+ *
  * @param mflux Mass flux into the inner mask.
  */
 #define flux_into_inner_mask(mflux)                                            \
   central_mass -= mflux * bondi_volume_correction_factor;
-#endif
 
+#endif // EOS == EOS_BONDI
+
+// boundary condition functionality
 #if BOUNDARIES == BOUNDARIES_BONDI
 
 /**
  * @brief Initialize variables used for the boundary conditions.
+ *
+ * We need to initialize the outer boundary variables.
  */
 #define boundary_conditions_initialize()                                       \
-  const double bondi_r_inv_low = RBONDI_ION / cells[0]._midpoint;              \
-  const double bondi_density_low = bondi_density(bondi_r_inv_low);             \
-  const double bondi_velocity_low = bondi_velocity(bondi_r_inv_low);           \
-  const double bondi_pressure_low = bondi_pressure(bondi_r_inv_low);           \
-                                                                               \
   const double bondi_r_inv_high = RBONDI / cells[ncell + 1]._midpoint;         \
   const double bondi_density_high = bondi_density(bondi_r_inv_high);           \
   const double bondi_velocity_high = bondi_velocity(bondi_r_inv_high);         \
   const double bondi_pressure_high = bondi_pressure(bondi_r_inv_high);         \
                                                                                \
-  const double bondi_rmin_inv = RBONDI_ION / (cells[0]._midpoint - CELLSIZE);  \
   const double bondi_rmax_inv =                                                \
       RBONDI / (cells[ncell + 1]._midpoint + CELLSIZE);                        \
-  const double bondi_density_min = bondi_density(bondi_rmin_inv);              \
-  const double bondi_velocity_min = bondi_velocity(bondi_rmin_inv);            \
-  const double bondi_pressure_min = bondi_pressure(bondi_rmin_inv);            \
   const double bondi_density_max = bondi_density(bondi_rmax_inv);              \
   const double bondi_velocity_max = bondi_velocity(bondi_rmax_inv);            \
   const double bondi_pressure_max = bondi_pressure(bondi_rmax_inv);
@@ -217,18 +232,12 @@
  */
 #define boundary_conditions_primitive_variables()                              \
   /* impose the Bondi solution at the boundaries */                            \
-  /*cells[0]._rho = bondi_density_low;                                         \
-  cells[0]._u = bondi_velocity_low;                                            \
-  cells[0]._P = bondi_pressure_contrast * bondi_pressure_low;*/                \
+  /* lower boundary: outflow */                                                \
   cells[0]._rho = cells[1]._rho;                                               \
   cells[0]._u = cells[1]._u;                                                   \
   cells[0]._P = cells[1]._P;                                                   \
                                                                                \
-  /*if(current_integer_time == 0){                                             \
-  cells[ncell + 1]._rho = bondi_density_high*(1. + 1.e-5);                     \
-  } else {                                                                     \
-  cells[ncell + 1]._rho = bondi_density_high;                                  \
-  }\*/                                                                         \
+  /* upper boundary: neutral Bondi solution */                                 \
   cells[ncell + 1]._rho = bondi_density_high;                                  \
   cells[ncell + 1]._u = bondi_velocity_high;                                   \
   cells[ncell + 1]._P = bondi_pressure_high;
@@ -237,38 +246,14 @@
  * @brief Apply boundary conditions after the gradient computation.
  */
 #define boundary_conditions_gradients()                                        \
-  /* lower boundary */                                                         \
-  /*{                                                                          \
-    double rhomin, rhoplu, umin, uplu, Pmin, Pplu, dmin, dplu;                 \
-    rhomin = cells[0]._rho - bondi_density_min;                                \
-    rhoplu = cells[0]._rho - cells[1]._rho;                                    \
-    umin = cells[0]._u - bondi_velocity_min;                                   \
-    uplu = cells[0]._u - cells[1]._u;                                          \
-    Pmin = cells[0]._P - bondi_pressure_contrast * bondi_pressure_min;         \
-    Pplu = cells[0]._P - cells[1]._P;                                          \
-    if (std::abs(rhomin) < std::abs(rhoplu)) {                                 \
-      cells[0]._grad_rho = rhomin / CELLSIZE;                                  \
-    } else {                                                                   \
-      cells[0]._grad_rho = rhoplu / CELLSIZE;                                  \
-    }                                                                          \
-    if (std::abs(umin) < std::abs(uplu)) {                                     \
-      cells[0]._grad_u = umin / CELLSIZE;                                      \
-    } else {                                                                   \
-      cells[0]._grad_u = uplu / CELLSIZE;                                      \
-    }                                                                          \
-    if (std::abs(Pmin) < std::abs(Pplu)) {                                     \
-      cells[0]._grad_P = Pmin / CELLSIZE;                                      \
-    } else {                                                                   \
-      cells[0]._grad_P = Pplu / CELLSIZE;                                      \
-    }                                                                          \
-  }*/                                                                          \
+  /* lower boundary: outflow */                                                \
   {                                                                            \
     cells[0]._grad_rho = cells[1]._grad_rho;                                   \
     cells[0]._grad_u = cells[1]._grad_u;                                       \
     cells[0]._grad_P = cells[1]._grad_P;                                       \
   }                                                                            \
                                                                                \
-  /* upper boundary */                                                         \
+  /* upper boundary: need to change this to correct expression */              \
   {                                                                            \
     double rhomin, rhoplu, umin, uplu, Pmin, Pplu, dmin, dplu;                 \
     rhomin = cells[ncell + 1]._rho - cells[ncell]._rho;                        \
@@ -294,10 +279,10 @@
     }                                                                          \
   }
 
-#endif
+#endif // BOUNDARIES == BOUNDARIES_BONDI
 
 /**
- * @brief Squared Bondi velocity divided by the sound speed squared.
+ * @brief Squared neutral Bondi velocity divided by the sound speed squared.
  *
  * @param rinv Inverse radius (in units of RBONDI^-1).
  * @return Bondi velocity squared divided by the sound speed squared.
@@ -312,7 +297,8 @@ double u2_over_cs2(double rinv) {
 }
 
 /**
- * @brief Get the value of the Bondi density at the given inverse radius.
+ * @brief Get the value of the neutral Bondi density at the given inverse
+ * radius.
  *
  * @param rinv Inverse radius (in units of RBONDI^-1).
  * @return Value of the density (in internal units of M L^-3).
@@ -328,7 +314,8 @@ double bondi_density(double rinv) {
 }
 
 /**
- * @brief Get the value of the Bondi velocity at the given inverse radius.
+ * @brief Get the value of the neutral Bondi velocity at the given inverse
+ * radius.
  *
  * @param rinv Inverse radius (in internal units of L^-1).
  * @return Value of the fluid velocity (in internal units of L T^-1).
@@ -338,7 +325,8 @@ double bondi_velocity(double rinv) {
 }
 
 /**
- * @brief Get the value of the Bondi pressure at the given inverse radius.
+ * @brief Get the value of the neutral Bondi pressure at the given inverse
+ * radius.
  *
  * @param rinv Inverse radius (in internal units of L^-1).
  * @return Value of the pressure (in internal units of M L^-1 T^-2).
@@ -348,64 +336,31 @@ double bondi_pressure(double rinv) {
 }
 
 /**
- * @brief Integrand for the luminosity integral.
- *
- * @param r Radius (in internal units of L).
- * @return Integrand: \f$r^2 \rho{}(r)^2\f$ (in internal units of M^2 L^-4).
- */
-double bondi_Q_integrand(double r) {
-  const double rinv = RBONDI / r;
-  const double rho = bondi_density(rinv);
-  return r * r * rho * rho;
-}
-
-/**
- * @brief Do a simple first order integration of the bondi_Q_integrand over the
- * given interval.
- *
- * @param a Lower limit of the interval (in internal units of L).
- * @param b Upper limit of the interval (in internal units of L).
- * @return First order approximation to the integral over the interval.
- */
-double bondi_Q_interval(double a, double b) {
-  return (b - a) * bondi_Q_integrand(0.5 * (a + b));
-}
-
-/**
- * @brief Get the total luminosity absorbed by the volume within the given
- * radius for the bondi density profile.
- *
- * @param r Radius (in internal units of L).
- * @param tolerance Required relative accuracy for the result (default: 1.e-10).
- * @return Total luminosity absorbed by the volume within the given radius
- * (in internal units of M^2 L^-3).
- */
-double bondi_Q(double r, double tolerance = 1.e-8) {
-  double I0 = bondi_Q_interval(0., r);
-  double I1 = bondi_Q_interval(0., 0.5 * r) + bondi_Q_interval(0.5 * r, r);
-  unsigned int npiece = 2;
-  while (std::abs(I0 - I1) > std::abs(I0 + I1) * tolerance) {
-    npiece <<= 1;
-    I0 = I1;
-    I1 = 0.;
-    const double dr = r / npiece;
-    for (unsigned int i = 0; i < npiece; ++i) {
-      I1 += bondi_Q_interval(i * dr, (i + 1) * dr);
-    }
-  }
-  return I1;
-}
-
-/**
  * @brief Get the increase in luminosity corresponding to the given increase in
  * central mass.
  *
+ * This expression was fitted to the values in Keto (2003).
+ *
  * @param M Central mass (in units of the initial central mass).
+ * @return Luminosity increase for the given mass increase.
  */
 inline static double get_bondi_Q_factor(const double M) {
   return 7.96185873 * (std::pow(M, 2.47692987) - 1.) + 1.;
 }
 
+/**
+ * @brief Get the neutral fraction within the given interval using an exact
+ * integration of the smooth transition expression.
+ *
+ * @param A Smooth transition parameter A (in internal units of L^-3).
+ * @param S Smooth transition parameter S (steepest allowed slope in the
+ * transition; in internal units of L^-1).
+ * @param rion Ionisation radius (in internal units of L).
+ * @param rmin Lower limit of the integration interval (in internal units of L).
+ * @param rmax Upper limit of the integration interval (in internal units of L).
+ * @return Integrated neutral fraction within the interval (in internal units of
+ * L).
+ */
 inline static double
 get_neutral_fraction_integral(const double A, const double S, const double rion,
                               const double rmin, const double rmax) {
@@ -422,13 +377,16 @@ get_neutral_fraction_integral(const double A, const double S, const double rion,
 /**
  * @brief Get the neutral fraction for the cell with the given midpoint radius.
  *
- * New version that contains a linear transition from ionized to neutral.
- *
  * @param rmin Radius of the lower wall of the cell (in internal units of L).
  * @param rmax Radius of the upper wall of the cell (in internal units of L).
- * @param rion Ionization radius (in internal units of L).
- * @param transition_width Width of the transition region (in internal units of
- * L).
+ * @param rion Ionisation radius (in internal units of L).
+ * @param rion_min Ionisation radius minus smooth transition width (in internal
+ * units of L).
+ * @param rion_max Ionisation radius plus smooth transition width (in internal
+ * units of L).
+ * @param A Smooth transition parameter A (in internal units of L^-3).
+ * @param S Smooth transition parameter S (steepest allowed slope in the
+ * transition; in internal units of L^-1).
  * @return Neutral fraction within the cell.
  */
 inline static double get_neutral_fraction(const double rmin, const double rmax,
@@ -436,6 +394,7 @@ inline static double get_neutral_fraction(const double rmin, const double rmax,
                                           const double rion_min,
                                           const double rion_max, const double S,
                                           const double A) {
+  // HERE WE NEED TO IMPLEMENT LINEAR_TRANSITION
   // Note: we assume rmax - rmin << rion_max - rion_min
   if (rmax < rion_min) {
     return 0.;
@@ -461,18 +420,19 @@ inline static double get_neutral_fraction(const double rmin, const double rmax,
   //    }
 }
 
+// Bondi initial condition functionality
 #if IC == IC_BONDI
 /**
  * @brief Initialize the given cells.
  *
+ * We start with a constant density and velocity everywhere, the value of which
+ * corresponds to the inflow values.
+ *
  * @param cells Cells to initialize.
+ * @param ncell Number of cells.
  */
 #define initialize(cells, ncell)                                               \
   _Pragma("omp parallel for") for (unsigned int i = 1; i < ncell + 1; ++i) {   \
-    /*const double r_inv = RBONDI / cells[i]._midpoint;                        \
-    cells[i]._rho = bondi_density(r_inv);                                      \
-    cells[i]._u = bondi_velocity(r_inv);                                       \
-    cells[i]._P = bondi_pressure(r_inv);*/                                     \
     const double r_inv = RBONDI / RMAX;                                        \
     cells[i]._rho = bondi_density(r_inv);                                      \
     cells[i]._u = bondi_velocity(r_inv);                                       \
@@ -482,6 +442,6 @@ inline static double get_neutral_fraction(const double rmin, const double rmax,
     cells[i]._nfac = 0.;                                                       \
   }
 
-#endif
+#endif // IC == IC_BONDI
 
 #endif // BONDI_HPP

@@ -27,28 +27,21 @@
 #ifndef PARAMETERS_HPP
 #define PARAMETERS_HPP
 
-/*! @brief Minimum radius (in internal units of L). */
+/*! @brief Minimum radius (in AU). */
 #define RMIN_IN_AU 10.
-/*! @brief Maximum radius (in internal units of L). */
+/*! @brief Maximum radius (in AU). */
 #define RMAX_IN_AU 100.
 
 /*! @brief Default number of spherical shells (1D "cells") in between RMIN and
- *  RMAX. */
+ *  RMAX. Can be overwritten by a command line parameter. */
 #define NCELL 2700
-/*! @brief Adiabatic index. */
+/*! @brief Polytropic index (set by the configuration). */
 #define GAMMA @gamma@
-/*! @brief Fixed time step (in internal units of T). */
-/*#define DT @dt@*/
-/*! @brief Number of time steps. */
-/*#define NSTEP @nstep@*/
-/*! @brief Number of time steps between subsequent snapshot dumps. */
-/*#define SNAPSTEP @snapstep@*/
 
+/*! @brief Maximum simulation time (in years). */
 #define MAXTIME_IN_YR 80.
+/*! @brief Number of snapshots to write during the simulation. */
 #define NUMBER_OF_SNAPS 4000
-
-/*! @brief Number of time steps before switching on ionization. */
-#define NSTEP_RELAX @nstep_relax@
 
 /*! @brief Default width of the ionization transition region (in internal units
  *  of L). */
@@ -57,7 +50,7 @@
 /*! @brief Choice of boundary conditions. */
 #define BOUNDARIES BOUNDARIES_BONDI
 
-/*! @brief Choice of equation of state. */
+/*! @brief Choice of equation of state (set by the configuration). */
 #define EOS @eos@
 
 /*! @brief Constant temperature in the neutral region (in K). */
@@ -71,38 +64,32 @@
 #define G 1.
 
 /*! @brief Mass of the point mass (if POTENTIAL_POINT_MASS is selected, in
- *  internal units of M). */
+ *  solar masses. */
 #define MASS_POINT_MASS_IN_MSOL 18.
 
 /*! @brief Switch off gradients (reduce to first order hydro scheme). */
 //#define NO_GRADIENTS
 
-/*! @brief Choice of initial conditions. */
+/*! @brief Choice of initial conditions (set by the configuration). */
 #define IC @ic@
 
-/*! @brief Central density of the Bondi set up (in units of M L^-3). */
+/*! @brief Central density of the Bondi set up (in kg m^-3). */
 #define BONDI_DENSITY_IN_SI (1.e-16)
 
-/*! @brief Exponent for the Bondi density. */
-#define BONDI_DENSITY_EXPONENT @bondi_density_exponent@
-
-/*! @brief Exponent for the Bondi velocity. */
-#define BONDI_VELOCITY_EXPONENT @bondi_velocity_exponent@
-
-/*! @brief Default Bondi pressure contrast. */
+/*! @brief Default pressure contrast between ionised and neutral region. */
 #define BONDI_PRESSURE_CONTRAST 32.
 
 /*! @brief Default name of the initial condition file (if IC_FILE is
  *  selected). */
 #define IC_FILE_NAME "ic_1000.dat"
 
-/*! @brief Approximate initial ionization radius (in internal units of L). */
+/*! @brief Initial ionization radius (in AU). */
 #define INITIAL_IONIZATION_RADIUS_IN_AU 30.
 
-/*! @brief Mass unit in kg. */
+/*! @brief Mass unit (in kg). */
 #define UNIT_MASS_IN_SI 2.479e31
 
-/*! @brief Length unit in m. */
+/*! @brief Length unit (in m). */
 #define UNIT_LENGTH_IN_SI 1.2e13
 
 #endif // PARAMETERS_HPP
