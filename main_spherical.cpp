@@ -287,7 +287,7 @@ int main(int argc, char **argv) {
   // Bondi.hpp
   unsigned int ncell = NCELL;
   std::string ic_file_name(IC_FILE_NAME);
-  double transition_width = IONIZATION_TRANSITION_WIDTH;
+  double transition_width = IONISATION_TRANSITION_WIDTH;
   double bondi_pressure_contrast = BONDI_PRESSURE_CONTRAST;
 
   // now overwrite with the actual command line parameters (if specified)
@@ -337,8 +337,8 @@ int main(int argc, char **argv) {
             << std::endl;
 #endif
 
-  std::cout << "Initial ionization radius: "
-            << INITIAL_IONIZATION_RADIUS * UNIT_LENGTH_IN_SI / AU_IN_SI
+  std::cout << "Initial ionisation radius: "
+            << INITIAL_IONISATION_RADIUS * UNIT_LENGTH_IN_SI / AU_IN_SI
             << std::endl;
 
   std::cout << "Point mass: " << MASS_POINT_MASS * UNIT_MASS_IN_SI << " kg"
@@ -449,11 +449,11 @@ int main(int argc, char **argv) {
     cells[i]._dt = cells[i]._integer_dt * time_conversion_factor;
   }
 
-  // initialize boundary condition and ionization variables
+  // initialize boundary condition and ionisation variables
   // these bits are handled in EOS.hpp (and Bondi.hpp for EOS_BONDI), and
   // Boundaries.hpp (and Bondi.hpp for BOUNDARIES_BONDI).
   boundary_conditions_initialize();
-  ionization_initialize();
+  ionisation_initialize();
 
   // initialize the Riemann solver
   // we use a fast HLLC solver
@@ -484,8 +484,8 @@ int main(int argc, char **argv) {
     // do first gravity kick, handled by Potential.hpp
     do_gravity();
 
-    // do ionization, handled by EOS.hpp (and Bondi.hpp for EOS_BONDI).
-    do_ionization();
+    // do ionisation, handled by EOS.hpp (and Bondi.hpp for EOS_BONDI).
+    do_ionisation();
 
     // update the primitive variables based on the values of the conserved
     // variables and the current cell volume

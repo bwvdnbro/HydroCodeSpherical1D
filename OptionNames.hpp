@@ -42,7 +42,7 @@
 #define EOS_IDEAL 1
 /*! @brief Isothermal equation of state. */
 #define EOS_ISOTHERMAL 2
-/*! @brief Bondi equation of state: isothermal gas with ionization pressure. */
+/*! @brief Bondi equation of state: isothermal gas with ionisation pressure. */
 #define EOS_BONDI 3
 
 // Possible types of external potentials.
@@ -60,5 +60,15 @@
 #define IC_BONDI 2
 /*! @brief Initial condition read in from a binary file. */
 #define IC_FILE 3
+
+// Possible modes of ionisation.
+
+/*! @brief Self-consistent ionisation: we compute a luminosity based on the
+ *  given initial ionisation radius and then use that luminosity to compute the
+ *  ionisation state later on in the simulation. */
+#define IONISATION_MODE_SELF_CONSISTENT 1
+/*! @brief Fixed ionisation radius: use the initial ionisation radius as a
+ *  constant ionisation radius. */
+#define IONISATION_MODE_CONSTANT 2
 
 #endif // OPTIONNAMES_HPP

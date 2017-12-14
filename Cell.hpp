@@ -78,7 +78,7 @@ public:
   /*! @brief Gravitational acceleration (in internal units of L T^-2). */
   double _a;
 
-  // ionization quantities
+  // ionisation quantities
 
   /*! @brief Neutral fraction. */
   double _nfac;

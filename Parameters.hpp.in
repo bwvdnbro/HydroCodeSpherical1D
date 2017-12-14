@@ -48,9 +48,9 @@
  *  configuration). */
 #define NUMBER_OF_SNAPS (@number_of_snaps@)
 
-/*! @brief Default width of the ionization transition region (in internal units
+/*! @brief Default width of the ionisation transition region (in internal units
  *  of L). */
-#define IONIZATION_TRANSITION_WIDTH (1.5 * 0.05)
+#define IONISATION_TRANSITION_WIDTH (1.5 * 0.05)
 
 /*! @brief Choice of boundary conditions (set by the configuration). */
 #define BOUNDARIES @boundaries@
@@ -91,13 +91,16 @@
  *  selected; set by the configuration). */
 #define IC_FILE_NAME "@ic_file_name@"
 
-/*! @brief Initial ionization radius (in AU; set by the configuration). */
-#define INITIAL_IONIZATION_RADIUS_IN_AU (@initial_ionization_radius_in_au@)
+/*! @brief Initial ionisation radius (in AU; set by the configuration). */
+#define INITIAL_IONISATION_RADIUS_IN_AU (@initial_ionisation_radius_in_au@)
 
 /*! @brief Mass unit (in kg; set by the configuration). */
 #define UNIT_MASS_IN_SI (@unit_mass_in_si@)
 
 /*! @brief Length unit (in m; set by the configuration). */
 #define UNIT_LENGTH_IN_SI (@unit_length_in_si@)
+
+/*! @brief Ionisation mode (set by the configuration). */
+#define IONISATION_MODE (@ionisation_mode@)
 
 #endif // PARAMETERS_HPP

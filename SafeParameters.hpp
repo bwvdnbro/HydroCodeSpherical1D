@@ -82,6 +82,17 @@
 #endif
 #endif
 
+// check ionisation mode
+#ifndef IONISATION_MODE
+#error "No ionisation mode selected!"
+#else
+#if IONISATION_MODE != IONISATION_MODE_SELF_CONSISTENT &&                      \
+    IONISATION_MODE != IONISATION_MODE_CONSTANT
+#pragma message(value_of_macro(IONISATION_MODE))
+#error "Invalid initial condition selected!"
+#endif
+#endif
+
 // include derived parameters
 #include "DerivedParameters.hpp"
 

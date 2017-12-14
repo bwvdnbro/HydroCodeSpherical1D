@@ -55,9 +55,10 @@ check_configuration_option(mass_point_mass_in_msol 18.)
 check_configuration_option(bondi_density_in_si 1.e-16)
 check_configuration_option(bondi_pressure_contrast 32.)
 check_configuration_option(ic_file_name "ic.dat")
-check_configuration_option(initial_ionization_radius_in_au 30.)
+check_configuration_option(initial_ionisation_radius_in_au 30.)
 check_configuration_option(unit_mass_in_si 2.479e31)
 check_configuration_option(unit_length_in_si 1.2e13)
+check_configuration_option(ionisation_mode "IONISATION_MODE_SELF_CONSISTENT")
 
 configure_file(${PROJECT_SOURCE_DIR}/Parameters.hpp.in
                ${PROJECT_SOURCE_DIR}/Parameters.hpp @only)

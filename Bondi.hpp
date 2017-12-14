@@ -50,10 +50,10 @@
  * We also open the log file in which we will write the ionisation radius as a
  * function of time.
  */
-#define ionization_initialize()                                                \
+#define ionisation_initialize()                                                \
   double rion_old = 0.;                                                        \
                                                                                \
-  std::ofstream bondi_rfile("ionization_radius.dat");                          \
+  std::ofstream bondi_rfile("ionisation_radius.dat");                          \
                                                                                \
   const double bondi_S =                                                       \
       (transition_width > 0.) ? 3. / (4. * transition_width) : 0.;             \
@@ -81,12 +81,12 @@
   for (uint_fast32_t i = 1; i < ncell + 1; ++i) {                              \
     const double rmin = cells[i]._lowlim;                                      \
     const double rmax = cells[i]._uplim;                                       \
-    if (rmax < INITIAL_IONIZATION_RADIUS) {                                    \
+    if (rmax < INITIAL_IONISATION_RADIUS) {                                    \
       const_bondi_Q += cells[i]._nfac;                                         \
-    } else if (rmin < INITIAL_IONIZATION_RADIUS) {                             \
+    } else if (rmin < INITIAL_IONISATION_RADIUS) {                             \
       const double ifac =                                                      \
-          (INITIAL_IONIZATION_RADIUS * INITIAL_IONIZATION_RADIUS *             \
-               INITIAL_IONIZATION_RADIUS -                                     \
+          (INITIAL_IONISATION_RADIUS * INITIAL_IONISATION_RADIUS *             \
+               INITIAL_IONISATION_RADIUS -                                     \
            rmin * rmin * rmin) /                                               \
           (rmax * rmax * rmax - rmin * rmin * rmin);                           \
       const double Cshell = cells[i]._nfac * ifac;                             \
@@ -125,17 +125,14 @@
                 (bondi_pressure_contrast * ifac + nfac);
 
 /**
- * @brief Code to determine the neutral fraction of the cells.
+ * @brief Compute the ionisation radius by numerically integrating the density
+ * squared until the desired target luminosity is reached.
  *
- * This code does three loops over all cells (of which two are done in
- * parallel):
- *  - a first loop to compute the integrated density squared for each cell
- *  - a second loop that figures out when the summed integrated density squared
- *    equals the target luminosity and computes the ionisation radius
- *  - a final loop that sets the neutral fraction once the ionisation radius is
- *    known
+ * This is only done if IONISATION_MODE_SELF_CONSISTENT is chosen during
+ * configuration.
  */
-#define do_ionization()                                                        \
+#if IONISATION_MODE == IONISATION_MODE_SELF_CONSISTENT
+#define get_ionisation_radius()                                                \
   /* first loop */                                                             \
   _Pragma("omp parallel for") for (uint_fast32_t i = 1; i < ncell + 1; ++i) {  \
     const double rmin = cells[i]._lowlim;                                      \
@@ -164,7 +161,7 @@
       } else {                                                                 \
         rion = rmax;                                                           \
       }                                                                        \
-      /* subtract this shell's ionization budget from the total */             \
+      /* subtract this shell's ionisation budget from the total */             \
       Cion -= ifac * cells[i]._nfac;                                           \
     }                                                                          \
   }                                                                            \
@@ -181,9 +178,27 @@
     bondi_rfile.write(reinterpret_cast<const char *>(&Cion), sizeof(double));  \
     bondi_rfile.flush();                                                       \
     rion_old = rion;                                                           \
-  }                                                                            \
-  /* fix the ionisation radius. This should be a parameter... */               \
-  /*rion = INITIAL_IONIZATION_RADIUS;*/                                        \
+  }
+#elif IONISATION_MODE == IONISATION_MODE_CONSTANT
+#define get_ionisation_radius() const double rion = INITIAL_IONISATION_RADIUS;
+#endif
+
+/**
+ * @brief Code to determine the neutral fraction of the cells.
+ *
+ * This code does three loops over all cells (of which two are done in
+ * parallel):
+ *  - a first loop to compute the integrated density squared for each cell
+ *  - a second loop that figures out when the summed integrated density squared
+ *    equals the target luminosity and computes the ionisation radius
+ *  - a final loop that sets the neutral fraction once the ionisation radius is
+ *    known
+ * The first two loops are done in get_ionisation_radius, and are not done if
+ * we keep the ionisation radius fixed.
+ */
+#define do_ionisation()                                                        \
+  /* compute the ionisation radius rion */                                     \
+  get_ionisation_radius();                                                     \
                                                                                \
   /* third loop */                                                             \
   const double rion_min = rion - 0.5 * transition_width;                       \

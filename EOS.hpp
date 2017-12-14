@@ -48,18 +48,18 @@
 #endif
 
 /**
- * @brief Initialize ionization variables.
+ * @brief Initialize ionisation variables.
  *
  * Not used for an ideal or isothermal equation of state.
  */
-#define ionization_initialize()
+#define ionisation_initialize()
 
 /**
  * @brief Code to determine the neutral fraction of the cells.
  *
  * Not used for an ideal or isothermal equation of state.
  */
-#define do_ionization()
+#define do_ionisation()
 
 /**
  * @brief Code to handle the mass flux into the inner mask.

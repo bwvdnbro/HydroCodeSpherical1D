@@ -43,8 +43,8 @@
   (MASS_POINT_MASS_IN_MSOL * SOLAR_MASS_IN_SI / UNIT_MASS_IN_SI)
 
 /*! @brief Initial ionisation radius (in internal units of L). */
-#define INITIAL_IONIZATION_RADIUS                                              \
-  (INITIAL_IONIZATION_RADIUS_IN_AU * AU_IN_SI / UNIT_LENGTH_IN_SI)
+#define INITIAL_IONISATION_RADIUS                                              \
+  (INITIAL_IONISATION_RADIUS_IN_AU * AU_IN_SI / UNIT_LENGTH_IN_SI)
 
 /*! @brief Size of the simulation "box" (in internal units of L). */
 #define BOXSIZE (RMAX - RMIN)
