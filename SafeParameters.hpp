@@ -89,7 +89,18 @@
 #if IONISATION_MODE != IONISATION_MODE_SELF_CONSISTENT &&                      \
     IONISATION_MODE != IONISATION_MODE_CONSTANT
 #pragma message(value_of_macro(IONISATION_MODE))
-#error "Invalid initial condition selected!"
+#error "Invalid ionisation mode selected!"
+#endif
+#endif
+
+// check ionisation transition
+#ifndef IONISATION_TRANSITION
+#error "No ionisation transition type selected!"
+#else
+#if IONISATION_TRANSITION != IONISATION_TRANSITION_JUMP &&                     \
+    IONISATION_TRANSITION != IONISATION_TRANSITION_SMOOTH
+#pragma message(value_of_macro(IONISATION_TRANSITION))
+#error "Invalid ionisation transition type selected!"
 #endif
 #endif
 

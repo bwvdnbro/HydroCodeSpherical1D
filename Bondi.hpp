@@ -409,7 +409,7 @@ inline static double get_neutral_fraction(const double rmin, const double rmax,
                                           const double rion_min,
                                           const double rion_max, const double S,
                                           const double A) {
-  // HERE WE NEED TO IMPLEMENT LINEAR_TRANSITION
+#if IONISATION_TRANSITION == IONISATION_TRANSITION_SMOOTH
   // Note: we assume rmax - rmin << rion_max - rion_min
   if (rmax < rion_min) {
     return 0.;
@@ -426,13 +426,15 @@ inline static double get_neutral_fraction(const double rmin, const double rmax,
   } else {
     return 1.;
   }
-  //    if(rmax < rion){
-  //      return 0;
-  //    } else if(rmin < rion){
-  //      return (rmax - rion) / (rmax - rmin);
-  //    } else {
-  //      return 1.;
-  //    }
+#elif IONISATION_TRANSITION == IONISATION_TRANSITION_JUMP
+  if (rmax < rion) {
+    return 0;
+  } else if (rmin < rion) {
+    return (rmax - rion) / (rmax - rmin);
+  } else {
+    return 1.;
+  }
+#endif
 }
 
 // Bondi initial condition functionality

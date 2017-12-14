@@ -71,4 +71,11 @@
  *  constant ionisation radius. */
 #define IONISATION_MODE_CONSTANT 2
 
+// Possible types of ionisation transition.
+
+/*! @brief Jump from ionised to neutral. */
+#define IONISATION_TRANSITION_JUMP 1
+/*! @brief Smooth transition from ionised to neutral. */
+#define IONISATION_TRANSITION_SMOOTH 2
+
 #endif // OPTIONNAMES_HPP

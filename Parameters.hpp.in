@@ -103,4 +103,7 @@
 /*! @brief Ionisation mode (set by the configuration). */
 #define IONISATION_MODE (@ionisation_mode@)
 
+/*! @brief Ionisation transition type (set by the configuration). */
+#define IONISATION_TRANSITION (@ionisation_transition@)
+
 #endif // PARAMETERS_HPP
