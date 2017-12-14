@@ -29,6 +29,17 @@
 #include "PhysicalConstants.hpp"
 #include "Units.hpp"
 
+#define RMIN (RMIN_IN_AU * AU_IN_SI / UNIT_LENGTH_IN_SI)
+#define RMAX (RMAX_IN_AU * AU_IN_SI / UNIT_LENGTH_IN_SI)
+
+#define MAXTIME (MAXTIME_IN_YR * YEAR_IN_SI / UNIT_TIME_IN_SI)
+
+#define MASS_POINT_MASS                                                        \
+  (MASS_POINT_MASS_IN_MSOL * SOLAR_MASS_IN_SI / UNIT_MASS_IN_SI)
+
+#define INITIAL_IONIZATION_RADIUS                                              \
+  (INITIAL_IONIZATION_RADIUS_IN_AU * AU_IN_SI / UNIT_LENGTH_IN_SI)
+
 /*! @brief Size of the simulation "box" (in internal units of L). */
 #define BOXSIZE (RMAX - RMIN)
 /*! @brief Half the size of a single "cell" of the simulation (in internal units

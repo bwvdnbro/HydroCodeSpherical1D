@@ -294,11 +294,11 @@ int main(int argc, char **argv) {
   std::cout << "Useful units:" << std::endl;
   std::cout << "Point mass: " << MASS_POINT_MASS * UNIT_MASS_IN_MSOL << " Msol"
             << std::endl;
-  std::cout << "Time step: " << DT * UNIT_TIME_IN_YR << " yr" << std::endl;
-  std::cout << "Total simulation time: " << DT * NSTEP * UNIT_TIME_IN_YR
-            << " yr" << std::endl;
-  std::cout << "Time in between snapshots: " << DT * SNAPSTEP * UNIT_TIME_IN_YR
-            << " yr " << std::endl;
+  std::cout << "Total simulation time: " << MAXTIME * UNIT_TIME_IN_YR << " yr"
+            << std::endl;
+  std::cout << "Time in between snapshots: "
+            << (MAXTIME / NUMBER_OF_SNAPS) * UNIT_TIME_IN_YR << " yr "
+            << std::endl;
   std::cout << "Minimum radius: " << RMIN * UNIT_LENGTH_IN_AU << " AU"
             << std::endl;
   std::cout << "Maximum radius: " << RMAX * UNIT_LENGTH_IN_AU << " AU"
@@ -313,7 +313,7 @@ int main(int argc, char **argv) {
     }
   }
 
-  const double maxtime = DT * NSTEP;
+  const double maxtime = MAXTIME;
   const uint_fast64_t integer_maxtime = 0x8000000000000000; // 2^63
   const double time_conversion_factor = maxtime / integer_maxtime;
 
@@ -328,14 +328,14 @@ int main(int argc, char **argv) {
     cells[i]._uplim = RMIN + i * CELLSIZE;
     cells[i]._V = CELLSIZE;
     cells[i]._integer_dt = 0;
-    cells[i]._dt = DT;
+    cells[i]._dt = (MAXTIME / NUMBER_OF_SNAPS);
     cells[i]._index = (i != 0 && i != ncell + 2) ? (i - 1) : ncell + 2;
   }
 
   // set up the initial condition
   initialize(cells, ncell);
 
-  const double courant_factor = 0.01;
+  const double courant_factor = 0.05;
 
   uint_fast64_t min_integer_dt = integer_maxtime;
 #pragma omp parallel for reduction(min : min_integer_dt)
@@ -389,7 +389,7 @@ int main(int argc, char **argv) {
   uint_fast64_t current_integer_time = 0;
   uint_fast64_t current_integer_dt = global_integer_dt;
   // main simulation loop: perform NSTEP steps
-  const uint_fast64_t snaptime = DT * SNAPSTEP / maxtime * integer_maxtime;
+  const uint_fast64_t snaptime = integer_maxtime / NUMBER_OF_SNAPS;
   uint_fast64_t isnap = 0;
   while (current_integer_time < integer_maxtime) {
 

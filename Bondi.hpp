@@ -91,7 +91,11 @@
     if (rmax < INITIAL_IONIZATION_RADIUS) {                                    \
       const_bondi_Q += cells[i]._nfac;                                         \
     } else if (rmin < INITIAL_IONIZATION_RADIUS) {                             \
-      const double ifac = (INITIAL_IONIZATION_RADIUS - rmin) / (rmax - rmin);  \
+      const double ifac =                                                      \
+          (INITIAL_IONIZATION_RADIUS * INITIAL_IONIZATION_RADIUS *             \
+               INITIAL_IONIZATION_RADIUS -                                     \
+           rmin * rmin * rmin) /                                               \
+          (rmax * rmax * rmax - rmin * rmin * rmin);                           \
       const double Cshell = cells[i]._nfac * ifac;                             \
       const_bondi_Q += Cshell;                                                 \
     }                                                                          \
@@ -141,7 +145,8 @@
       if (ifac < 1.) {                                                         \
         if (ifac > 0.) {                                                       \
           const double nfac = 1. - ifac;                                       \
-          rion = ifac * rmax + nfac * rmin;                                    \
+          rion = std::cbrt(ifac * rmax * rmax * rmax +                         \
+                           nfac * rmin * rmin * rmin);                         \
         }                                                                      \
       } else {                                                                 \
         rion = rmax;                                                           \
@@ -151,9 +156,6 @@
     }                                                                          \
   }                                                                            \
   if (std::abs(rion - rion_old) > 1.e-2 * std::abs(rion + rion_old)) {         \
-    /*bondi_rfile << current_integer_time * time_conversion_factor *           \
-                       UNIT_TIME_IN_SI                                         \
-                << "\t" << rion * UNIT_LENGTH_IN_SI << "\n";*/                 \
     const double curtime =                                                     \
         current_integer_time * time_conversion_factor * UNIT_TIME_IN_SI;       \
     const double ionrad = rion * UNIT_LENGTH_IN_SI;                            \
@@ -166,7 +168,7 @@
     bondi_rfile.flush();                                                       \
     rion_old = rion;                                                           \
   }                                                                            \
-  rion = INITIAL_IONIZATION_RADIUS;                                            \
+  /*rion = INITIAL_IONIZATION_RADIUS;*/                                        \
   const double rion_min = rion - 0.5 * transition_width;                       \
   const double rion_max = rion + 0.5 * transition_width;                       \
   _Pragma("omp parallel for") for (uint_fast32_t i = 1; i < ncell + 1; ++i) {  \
@@ -450,13 +452,13 @@ inline static double get_neutral_fraction(const double rmin, const double rmax,
   } else {
     return 1.;
   }
-  //  if(rmax < rion){
-  //    return 0;
-  //  } else if(rmin < rion){
-  //    return (rmax - rion) / (rmax - rmin);
-  //  } else {
-  //    return 1.;
-  //  }
+  //    if(rmax < rion){
+  //      return 0;
+  //    } else if(rmin < rion){
+  //      return (rmax - rion) / (rmax - rmin);
+  //    } else {
+  //      return 1.;
+  //    }
 }
 
 #if IC == IC_BONDI
@@ -467,12 +469,13 @@ inline static double get_neutral_fraction(const double rmin, const double rmax,
  */
 #define initialize(cells, ncell)                                               \
   _Pragma("omp parallel for") for (unsigned int i = 1; i < ncell + 1; ++i) {   \
-    const double r_inv = RBONDI / cells[i]._midpoint;                          \
-    /*cells[i]._rho = bondi_density(r_inv);                                    \
+    /*const double r_inv = RBONDI / cells[i]._midpoint;                        \
+    cells[i]._rho = bondi_density(r_inv);                                      \
     cells[i]._u = bondi_velocity(r_inv);                                       \
     cells[i]._P = bondi_pressure(r_inv);*/                                     \
-    cells[i]._rho = BONDI_DENSITY;                                             \
-    cells[i]._u = -std::sqrt(ISOTHERMAL_C_SQUARED);                            \
+    const double r_inv = RBONDI / RMAX;                                        \
+    cells[i]._rho = bondi_density(r_inv);                                      \
+    cells[i]._u = bondi_velocity(r_inv);                                       \
     cells[i]._P = ISOTHERMAL_C_SQUARED * BONDI_DENSITY;                        \
     const double r2 = cells[i]._midpoint * cells[i]._midpoint;                 \
     cells[i]._a = -G * MASS_POINT_MASS / r2;                                   \

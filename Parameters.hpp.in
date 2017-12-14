@@ -28,21 +28,24 @@
 #define PARAMETERS_HPP
 
 /*! @brief Minimum radius (in internal units of L). */
-#define RMIN 0.2
+#define RMIN_IN_AU 10.
 /*! @brief Maximum radius (in internal units of L). */
-#define RMAX 1.
+#define RMAX_IN_AU 100.
 
 /*! @brief Default number of spherical shells (1D "cells") in between RMIN and
  *  RMAX. */
-#define NCELL 2000
+#define NCELL 2700
 /*! @brief Adiabatic index. */
 #define GAMMA @gamma@
 /*! @brief Fixed time step (in internal units of T). */
-#define DT @dt@
+/*#define DT @dt@*/
 /*! @brief Number of time steps. */
-#define NSTEP @nstep@
+/*#define NSTEP @nstep@*/
 /*! @brief Number of time steps between subsequent snapshot dumps. */
-#define SNAPSTEP @snapstep@
+/*#define SNAPSTEP @snapstep@*/
+
+#define MAXTIME_IN_YR 80.
+#define NUMBER_OF_SNAPS 4000
 
 /*! @brief Number of time steps before switching on ionization. */
 #define NSTEP_RELAX @nstep_relax@
@@ -69,7 +72,7 @@
 
 /*! @brief Mass of the point mass (if POTENTIAL_POINT_MASS is selected, in
  *  internal units of M). */
-#define MASS_POINT_MASS 1.5
+#define MASS_POINT_MASS_IN_MSOL 18.
 
 /*! @brief Switch off gradients (reduce to first order hydro scheme). */
 //#define NO_GRADIENTS
@@ -78,7 +81,7 @@
 #define IC @ic@
 
 /*! @brief Central density of the Bondi set up (in units of M L^-3). */
-#define BONDI_DENSITY_IN_SI (1.e-20)
+#define BONDI_DENSITY_IN_SI (1.e-16)
 
 /*! @brief Exponent for the Bondi density. */
 #define BONDI_DENSITY_EXPONENT @bondi_density_exponent@
@@ -87,14 +90,14 @@
 #define BONDI_VELOCITY_EXPONENT @bondi_velocity_exponent@
 
 /*! @brief Default Bondi pressure contrast. */
-#define BONDI_PRESSURE_CONTRAST 100.
+#define BONDI_PRESSURE_CONTRAST 32.
 
 /*! @brief Default name of the initial condition file (if IC_FILE is
  *  selected). */
 #define IC_FILE_NAME "ic_1000.dat"
 
 /*! @brief Approximate initial ionization radius (in internal units of L). */
-#define INITIAL_IONIZATION_RADIUS 0.35
+#define INITIAL_IONIZATION_RADIUS_IN_AU 30.
 
 /*! @brief Mass unit in kg. */
 #define UNIT_MASS_IN_SI 2.479e31
