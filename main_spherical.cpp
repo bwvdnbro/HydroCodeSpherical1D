@@ -16,19 +16,20 @@
  * along with HydroCodeSpherical1D. If not, see <http://www.gnu.org/licenses/>.
  ******************************************************************************/
 
-#include "Bondi.hpp"
-#include "Boundaries.hpp"
-#include "Cell.hpp"
-#include "EOS.hpp"
-#include "HLLCRiemannSolver.hpp"
-#include "IC.hpp"
-#include "LogFile.hpp"
-#include "Potential.hpp"
-#include "RiemannSolver.hpp"
-#include "SafeParameters.hpp"
-#include "Spherical.hpp"
-#include "Timer.hpp"
-#include "Units.hpp"
+// project includes
+#include "Bondi.hpp"             // for EOS_BONDI, BOUNDARIES_BONDI, IC_BONDI
+#include "Boundaries.hpp"        // for non Bondi boundary conditions
+#include "Cell.hpp"              // cell structure
+#include "EOS.hpp"               // for non Bondi equations of state
+#include "HLLCRiemannSolver.hpp" // fast HLLC Riemann solver
+#include "IC.hpp"                // general initial condition interface
+#include "LogFile.hpp"           // log file output
+#include "Potential.hpp"         // external gravity
+#include "RiemannSolver.hpp"     // slow exact Riemann solver
+#include "SafeParameters.hpp"    // safe way to include Parameter.hpp
+#include "Spherical.hpp"         // spherical source terms
+#include "Timer.hpp"             // program timers
+#include "Units.hpp"             // unit information
 
 // standard libraries
 #include <cfloat>
@@ -42,6 +43,11 @@
 
 //#define NO_LOGFILE
 
+/**
+ * @brief Get the current time as a string.
+ *
+ * @return Current system time as a string with format YYYY:MM:DD:HH:MM:SS.
+ */
 static std::string get_timestamp() {
   const std::time_t timestamp = std::time(nullptr);
   const std::tm *time = std::localtime(&timestamp);
@@ -75,6 +81,7 @@ static std::string get_timestamp() {
  *
  * @param istep Index of the snapshot file.
  * @param cells Cells to write.
+ * @param ncell Number of cells.
  */
 void write_snapshot(uint_fast64_t istep, double time, const Cell *cells,
                     const unsigned int ncell) {
@@ -100,7 +107,8 @@ void write_snapshot(uint_fast64_t istep, double time, const Cell *cells,
 /**
  * @brief Write a binary snapshot that can be used as initial condition file.
  *
- * @param Cells to write.
+ * @param cells Cells to write.
+ * @param ncell Number of cells.
  */
 void write_binary_snapshot(const Cell *cells, const unsigned int ncell) {
   std::ofstream ofile("lastsnap_sod.dat");
@@ -112,6 +120,9 @@ void write_binary_snapshot(const Cell *cells, const unsigned int ncell) {
   }
 }
 
+/**
+ * @brief Practical names for log entry numbers.
+ */
 enum LogEntry {
   LOGENTRY_DENSITY = 0,
   LOGENTRY_VELOCITY,
@@ -120,7 +131,17 @@ enum LogEntry {
   NUMBER_OF_LOGENTRIES
 };
 
+/**
+ * @brief Check if the value for the given log entry variable has changed
+ * significantly since the last output.
+ *
+ * @param logentry Log entry identifier.
+ * @param cell Cell to check.
+ */
 static inline bool changed(const int logentry, const Cell &cell) {
+  // tolerance: If the relative difference of the value and the last outputted
+  // value is less than this value, no output is written
+  // Should probably become a parameter at some point...
   static const double tol = 1.e-3;
   switch (logentry) {
   case LOGENTRY_DENSITY:
@@ -140,6 +161,13 @@ static inline bool changed(const int logentry, const Cell &cell) {
   }
 }
 
+/**
+ * @brief Get the value for the given log entry variable.
+ *
+ * @param logentry Log entry identifier.
+ * @param cell Cell for which we want the variable.
+ * @return Value of the variable.
+ */
 static inline double get_value(const int logentry, Cell &cell) {
   switch (logentry) {
   case LOGENTRY_DENSITY:
@@ -159,12 +187,22 @@ static inline double get_value(const int logentry, Cell &cell) {
   }
 }
 
+/**
+ * @brief Write significantly changed variables to the log file.
+ *
+ * @param log LogFile to write to.
+ * @param cells Cells to write.
+ * @param ncell Number of cells.
+ * @param time Current simulation time (in internal units of T).
+ * @param full_dump If set to True, dumps all cells irrespective of variable
+ * changes.
+ */
 static inline void write_logfile(LogFile &log, Cell *cells,
                                  const unsigned int ncell, const double time,
                                  bool full_dump = false) {
 #ifndef NO_LOGFILE
   if (full_dump) {
-    // initial write: write all particles
+    // full dump: write all particles
     for (uint_fast16_t i = 1; i < ncell + 1; ++i) {
       for (int logentry = 0; logentry < NUMBER_OF_LOGENTRIES; ++logentry) {
         unsigned long previous_entry = cells[i]._last_entry;
@@ -197,6 +235,12 @@ static inline void write_logfile(LogFile &log, Cell *cells,
 #endif // NO_LOGFILE
 }
 
+/**
+ * @brief Round the given integer down to the nearest power of 2.
+ *
+ * @param x Integer.
+ * @return Nearest lower power of 2.
+ */
 static inline uint_fast64_t round_power2_down(uint_fast64_t x) {
   --x;
   x |= (x >> 1);
@@ -213,20 +257,40 @@ static inline uint_fast64_t round_power2_down(uint_fast64_t x) {
 /**
  * @brief Main simulation program.
  *
- * @param argc Number of command line arguments (ignored).
- * @param argv Command line arguments (ignored).
+ * Usage: ./HydroCodeSpherical1D [ncell [ic_file_name [transition_width
+ *        [bondi_pressure_contrast] ] ] ]
+ * Valid command line arguments are:
+ *  - ncell: Number of cells to use.
+ *  - ic_file_name: Name of the initial condition file (if IC_FILE was selected
+ *    when configuring the code). Note that the number of values in the file
+ *    should match the value of "ncell".
+ *  - transition_width: Width of the linear transition region between ionised
+ *    and neutral region (if LINEAR_TRANSITION was selected when configuring the
+ *    code). Should be given in internal length units.
+ *  - bondi_pressure_contrast: Pressure contrast between ionised and neutral
+ *    region. The pressure contrast consist of the ratio of ionised and neutral
+ *    temperature AND the factor two change in mean particle mass between
+ *    ionised and neutral gas.
+ *
+ * @param argc Number of command line arguments.
+ * @param argv Command line arguments.
  * @return Exit code: 0 on success.
  */
 int main(int argc, char **argv) {
 
+  // time the program
   Timer total_time;
   total_time.start();
 
+  // initialize the optional parameters with their default values
+  // default values are given in Parameters.hpp.in, DerivedParameters.hpp and
+  // Bondi.hpp
   unsigned int ncell = NCELL;
   std::string ic_file_name(IC_FILE_NAME);
   double transition_width = IONIZATION_TRANSITION_WIDTH;
   double bondi_pressure_contrast = BONDI_PRESSURE_CONTRAST;
 
+  // now overwrite with the actual command line parameters (if specified)
   if (argc > 1) {
     ncell = atoi(argv[1]);
   }
@@ -240,11 +304,7 @@ int main(int argc, char **argv) {
     bondi_pressure_contrast = atof(argv[4]);
   }
 
-  //  for(unsigned int i = 0; i < 1000; ++i){
-  //    const double x = 0.2 + 0.001 * 0.2 * i;
-  //    std::cout << x << "\t" << get_neutral_fraction(x, 0.3) << std::endl;
-  //  }
-  //  return 0;
+  // output: most of this was useful at some point
   std::cout << "Slope: " << (1.5 / transition_width) / UNIT_LENGTH_IN_SI
             << std::endl;
 
@@ -278,12 +338,6 @@ int main(int argc, char **argv) {
             << std::endl;
 #endif
 
-  //  std::cout << "Ionizing luminosity: "
-  //            << (4. * M_PI * 4.e-7 * bondi_Q(INITIAL_IONIZATION_RADIUS) *
-  //                UNIT_DENSITY_IN_SI * UNIT_MASS_IN_SI / HYDROGEN_MASS_IN_SI /
-  //                HYDROGEN_MASS_IN_SI)
-  //            << std::endl;
-
   std::cout << "Initial ionization radius: "
             << INITIAL_IONIZATION_RADIUS * UNIT_LENGTH_IN_SI / AU_IN_SI
             << std::endl;
@@ -304,6 +358,7 @@ int main(int argc, char **argv) {
   std::cout << "Maximum radius: " << RMAX * UNIT_LENGTH_IN_AU << " AU"
             << std::endl;
 
+// figure out how many threads we are using and tell the user about this
 #pragma omp parallel
   {
 #pragma omp single
@@ -313,6 +368,8 @@ int main(int argc, char **argv) {
     }
   }
 
+  // initialize the time line used for time stepping
+  // we use a classical power of 2 integer time line as e.g. Gadget2
   const double maxtime = MAXTIME;
   const uint_fast64_t integer_maxtime = 0x8000000000000000; // 2^63
   const double time_conversion_factor = maxtime / integer_maxtime;
@@ -323,25 +380,40 @@ int main(int argc, char **argv) {
   Cell *cells = new Cell[ncell + 2];
 #pragma omp parallel for
   for (uint_fast32_t i = 0; i < ncell + 2; ++i) {
+    // cell positions (lower limit, center and upper limit) are precomputed for
+    // maximal efficiency
     cells[i]._lowlim = RMIN + (i - 1.) * CELLSIZE;
     cells[i]._midpoint = RMIN + (i - 0.5) * CELLSIZE;
     cells[i]._uplim = RMIN + i * CELLSIZE;
     cells[i]._V = CELLSIZE;
     cells[i]._integer_dt = 0;
+    // initialize the time step to a sensible value: the requested snapshot time
+    // interval
     cells[i]._dt = (MAXTIME / NUMBER_OF_SNAPS);
+    // only actual cells have an index in the range [0, ncell[. The two ghost
+    // cells are excluded by the bit of conditional magic below.
     cells[i]._index = (i != 0 && i != ncell + 2) ? (i - 1) : ncell + 2;
   }
 
   // set up the initial condition
+  // this bit is handled by IC.hpp, and specific implementations in ICFile.hpp
+  // (if configured with IC_FILE), Bondi.hpp (if configured with IC_BONDI), or
+  // Sod.hpp (if configured with IC_SOD).
   initialize(cells, ncell);
 
+  // Courant factor for the CFL time step criterion
+  // we use a very conservative value
   const double courant_factor = 0.05;
 
+  // convert the input primitive variables into conserved variables, and compute
+  // the initial time step
+  // we use a global time step, which is the minimum time step among all cells
   uint_fast64_t min_integer_dt = integer_maxtime;
 #pragma omp parallel for reduction(min : min_integer_dt)
   // convert primitive variables to conserved variables
   for (uint_fast32_t i = 1; i < ncell + 1; ++i) {
     // apply the equation of state to get the initial pressure (if necessary)
+    // this bit is handled by EOS.hpp and Bondi.hpp (for EOS_BONDI)
     initial_pressure(cells[i]);
 
     // use the cell volume to convert primitive into conserved variables
@@ -349,12 +421,15 @@ int main(int argc, char **argv) {
     cells[i]._p = cells[i]._m * cells[i]._u;
     cells[i]._E = cells[i]._P * cells[i]._V / (GAMMA - 1.) +
                   0.5 * cells[i]._u * cells[i]._p;
+
+    // time step criterion
     const double cs =
         std::sqrt(GAMMA * cells[i]._P / cells[i]._rho) + std::abs(cells[i]._u);
     const double dt = courant_factor * cells[i]._V / cs;
     const uint_fast64_t integer_dt = (dt / maxtime) * integer_maxtime;
     min_integer_dt = std::min(min_integer_dt, integer_dt);
 
+    // initialize variables used for the log file
     cells[i]._last_rho = cells[i]._rho;
     cells[i]._last_u = cells[i]._u;
     cells[i]._last_P = cells[i]._P;
@@ -362,7 +437,7 @@ int main(int argc, char **argv) {
     cells[i]._last_entry = 0;
   }
 
-  //  std::ofstream logfile("logfile.dat");
+  // initialize the log file and write the first entry
   LogFile logfile("logfile.dat", 100);
   write_logfile(logfile, cells, ncell, 0., true);
 
@@ -376,40 +451,53 @@ int main(int argc, char **argv) {
   }
 
   // initialize boundary condition and ionization variables
+  // these bits are handled in EOS.hpp (and Bondi.hpp for EOS_BONDI), and
+  // Boundaries.hpp (and Bondi.hpp for BOUNDARIES_BONDI).
   boundary_conditions_initialize();
   ionization_initialize();
 
   // initialize the Riemann solver
+  // we use a fast HLLC solver
+  // replace "HLLCRiemannSolver" with "RiemannSolver" to use a slower, exact
+  // solver
   HLLCRiemannSolver solver(GAMMA);
 
+  // initialize some variables used to guesstimate the remaing run time
   Timer step_time;
   double time_since_last = 0.;
   double time_since_start = 0.;
   unsigned int steps_since_last = 0;
+  // initialize the time stepping
   uint_fast64_t current_integer_time = 0;
   uint_fast64_t current_integer_dt = global_integer_dt;
-  // main simulation loop: perform NSTEP steps
+  // initialize snapshot variables
   const uint_fast64_t snaptime = integer_maxtime / NUMBER_OF_SNAPS;
   uint_fast64_t isnap = 0;
+  // main simulation loop: perform NSTEP steps
   while (current_integer_time < integer_maxtime) {
 
+    // start the step timer
     step_time.start();
 
+    // add the spherical source term. Handled by Spherical.hpp
     add_spherical_source_term();
 
-    // do first gravity kick
+    // do first gravity kick, handled by Potential.hpp
     do_gravity();
 
-    // do ionization
+    // do ionization, handled by EOS.hpp (and Bondi.hpp for EOS_BONDI).
     do_ionization();
 
     // update the primitive variables based on the values of the conserved
     // variables and the current cell volume
+    // also compute the new time step
     min_integer_dt = integer_maxtime;
 #pragma omp parallel for reduction(min : min_integer_dt)
     for (uint_fast32_t i = 1; i < ncell + 1; ++i) {
       cells[i]._rho = cells[i]._m / cells[i]._V;
       cells[i]._u = cells[i]._p / cells[i]._m;
+      // the pressure update depends on the equation of state
+      // this is handled in EOS.hpp (and Bondi.hpp for EOS_BONDI)
       update_pressure(cells[i]);
       const double cs = std::sqrt(GAMMA * cells[i]._P / cells[i]._rho) +
                         std::abs(cells[i]._u);
@@ -418,6 +506,7 @@ int main(int argc, char **argv) {
       min_integer_dt = std::min(min_integer_dt, integer_dt);
     }
 
+    // now is the time to write to the log file
     write_logfile(logfile, cells, ncell,
                   current_integer_time * time_conversion_factor);
 
@@ -428,6 +517,7 @@ int main(int argc, char **argv) {
     while ((integer_maxtime - current_integer_time) % global_integer_dt > 0) {
       global_integer_dt >>= 1;
     }
+// set the new cell time steps
 #pragma omp parallel for
     for (uint_fast32_t i = 1; i < ncell + 1; ++i) {
       cells[i]._integer_dt = global_integer_dt;
@@ -437,6 +527,8 @@ int main(int argc, char **argv) {
 
     // check if we need to output a snapshot
     if (current_integer_time >= isnap * snaptime) {
+      // yes: display some statistics and a guesstimate of the remaining run
+      // time
       const double pct = current_integer_time * 100. / integer_maxtime;
       std::cout << get_timestamp() << "\t" << ncell << ": "
                 << "time " << current_integer_time * time_conversion_factor
@@ -451,18 +543,22 @@ int main(int argc, char **argv) {
       std::cout << "\t\t\tEstimated time to go: " << time_to_go << " s"
                 << std::endl;
 #if EOS == EOS_BONDI
+      // we added this bit for the case where we want to add accreted material
+      // to the central mass (currently not used)
       std::cout << "\t\t\tCentral mass: " << central_mass << " ("
                 << (central_mass / MASS_POINT_MASS) << ")" << std::endl;
 #endif
+      // reset guesstimate counters
       time_since_last = 0.;
       steps_since_last = 0;
+      // write the actual snapshot
       write_snapshot(isnap, current_integer_time * time_conversion_factor,
                      cells, ncell);
       ++isnap;
     }
 
     // apply boundary conditions
-    // SHOULD BE FAST ENOUGH NOT TO CARE ABOUT PARALLELIZATION
+    // handled by Boundaries.hpp (and Bondi.hpp for BOUNDARIES_BONDI)
     boundary_conditions_primitive_variables();
 
 // compute slope limited gradients for the primitive variables in each cell
@@ -509,7 +605,8 @@ int main(int argc, char **argv) {
       cells[i]._grad_P = alpha_P * gradP;
     }
 
-    // apply boundary conditions
+    // apply boundary conditions for the gradients
+    // handled by Boundaries.hpp (and Bondi.hpp for BOUNDARIES_BONDI)
     boundary_conditions_gradients();
 
 #ifdef NO_GRADIENTS
@@ -543,10 +640,13 @@ int main(int argc, char **argv) {
         cells[i]._P = P;
       }
 
+      // add gravity prediction. Handled by Potential.hpp.
       add_gravitational_prediction(cells[i], half_dt);
     }
 
 // do the flux exchange
+// to avoid thread concurrency, we compute each flux twice, and only update one
+// cell at a time
 #pragma omp parallel for
     for (uint_fast32_t i = 1; i < ncell + 1; ++i) {
       const double dt = cells[i]._dt;
@@ -584,6 +684,7 @@ int main(int argc, char **argv) {
           PR_dash = PR;
         }
 
+        // solve the Riemann problem at the interface between the two cells
         double mflux, pflux, Eflux;
         solver.solve_for_flux(rhoL_dash, uL_dash, PL_dash, rhoR_dash, uR_dash,
                               PR_dash, mflux, pflux, Eflux);
@@ -629,6 +730,7 @@ int main(int argc, char **argv) {
           PR_dash = PR;
         }
 
+        // solve the Riemann problem at the interface between the two cells
         double mflux, pflux, Eflux;
         solver.solve_for_flux(rhoL_dash, uL_dash, PL_dash, rhoR_dash, uR_dash,
                               PR_dash, mflux, pflux, Eflux);
@@ -639,31 +741,39 @@ int main(int argc, char **argv) {
       }
     }
 
+    // add the spherical source term
+    // handled by Spherical.hpp
     add_spherical_source_term();
 
-    // do second gravity kick
+    // do the second gravity kick
+    // handled by Potential.hpp
     do_gravity();
 
+    // stop the step timer, and update guesstimate counters
     step_time.stop();
     time_since_last += step_time.value();
     ++steps_since_last;
     step_time.reset();
+
+    // update the system time
     current_integer_time += current_integer_dt;
   }
 
   // write the final logfile entry
   write_logfile(logfile, cells, ncell,
                 current_integer_time * time_conversion_factor, true);
-
+  // close the log file
   logfile.close_file();
 
-  // write the final snapshot
+  // write the final snapshots
   write_snapshot(isnap, current_integer_time * time_conversion_factor, cells,
                  ncell);
   write_binary_snapshot(cells, ncell);
 
+  // clean up: free cell memory
   delete[] cells;
 
+  // stop timing the program and display run time information
   total_time.stop();
   std::cout << "Total program time: " << total_time.value() << " s."
             << std::endl;
