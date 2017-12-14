@@ -107,9 +107,9 @@ public:
   inline double interval() {
     timeval tempstop;
     gettimeofday(&tempstop, NULL);
-    timeval interval;
-    timersub(&tempstop, &_start, &interval);
-    return interval.tv_sec + 1.e-6 * interval.tv_usec;
+    timeval time_interval;
+    timersub(&tempstop, &_start, &time_interval);
+    return time_interval.tv_sec + 1.e-6 * time_interval.tv_usec;
   }
 
   /**

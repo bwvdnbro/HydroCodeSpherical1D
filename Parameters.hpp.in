@@ -19,8 +19,8 @@
 /**
  * @file Parameters.hpp
  *
- * @brief Simulation parameters. This is the only file that should be altered if
- * no new functionality is added.
+ * @brief Simulation parameters. All these parameters are configured
+ * automatically by CMake. Please don't touch this file!
  *
  * @author Bert Vandenbroucke (bv7@st-andrews.ac.uk)
  */
@@ -105,5 +105,11 @@
 
 /*! @brief Ionisation transition type (set by the configuration). */
 #define IONISATION_TRANSITION (@ionisation_transition@)
+
+/*! @brief Courant factor for the time step criterion. */
+#define COURANT_FACTOR (@courant_factor@)
+
+/*! @brief Type of Riemann solver to use. */
+#define RIEMANNSOLVER_TYPE @riemannsolver_type@
 
 #endif // PARAMETERS_HPP

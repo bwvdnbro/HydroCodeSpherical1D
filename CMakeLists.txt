@@ -61,9 +61,13 @@ check_configuration_option(unit_length_in_si 1.2e13)
 check_configuration_option(ionisation_mode "IONISATION_MODE_SELF_CONSISTENT")
 check_configuration_option(ionisation_transition "IONISATION_TRANSITION_SMOOTH")
 check_configuration_option(ionisation_transition_width_in_au 5.)
+check_configuration_option(courant_factor 0.05)
+check_configuration_option(riemannsolver_type "RIEMANNSOLVER_TYPE_HLLC")
 
 configure_file(${PROJECT_SOURCE_DIR}/Parameters.hpp.in
-               ${PROJECT_SOURCE_DIR}/Parameters.hpp @only)
+               ${PROJECT_BINARY_DIR}/Parameters.hpp @only)
+
+include_directories(${PROJECT_BINARY_DIR})
 
 find_package(OpenMP)
 if(OPENMP_FOUND)
@@ -74,5 +78,6 @@ endif(OPENMP_FOUND)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffast-math -ftree-vectorize")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Werror -Wshadow")
 
 add_executable(HydroCodeSpherical1D ${SOURCES})

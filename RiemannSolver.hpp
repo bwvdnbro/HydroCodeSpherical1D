@@ -322,41 +322,41 @@ private:
     double c = 0.;
     double d = 1e230;
 
-    double fa = fPlow;
-    double fb = fPhigh;
-    double fc = 0.;
+    double faval = fPlow;
+    double fbval = fPhigh;
+    double fcval = 0.;
 
     double s = 0.;
     double fs = 0.;
 
-    if (fa * fb > 0.) {
+    if (faval * fbval > 0.) {
       cmac_error("Equal sign function values provided to solve_brent (%g %g)!",
-                 fa, fb);
+                 faval, fbval);
     }
 
     // if |f(a)| < |f(b)| then swap (a,b) end if
-    if (std::abs(fa) < std::abs(fb)) {
+    if (std::abs(faval) < std::abs(fbval)) {
       double tmp = a;
       a = b;
       b = tmp;
-      tmp = fa;
-      fa = fb;
-      fb = tmp;
+      tmp = faval;
+      faval = fbval;
+      fbval = tmp;
     }
 
     c = a;
-    fc = fa;
+    fcval = faval;
     bool mflag = true;
 
-    while (!(fb == 0.) && (std::abs(a - b) > 5.e-9 * (a + b))) {
-      if ((fa != fc) && (fb != fc)) {
+    while (!(fbval == 0.) && (std::abs(a - b) > 5.e-9 * (a + b))) {
+      if ((faval != fcval) && (fbval != fcval)) {
         // Inverse quadratic interpolation
-        s = a * fb * fc / (fa - fb) / (fa - fc) +
-            b * fa * fc / (fb - fa) / (fb - fc) +
-            c * fa * fb / (fc - fa) / (fc - fb);
+        s = a * fbval * fcval / (faval - fbval) / (faval - fcval) +
+            b * faval * fcval / (fbval - faval) / (fbval - fcval) +
+            c * faval * fbval / (fcval - faval) / (fcval - fbval);
       } else {
         // Secant Rule
-        s = b - fb * (b - a) / (fb - fa);
+        s = b - fbval * (b - a) / (fbval - faval);
       }
 
       double tmp2 = 0.25 * (3. * a + b);
@@ -373,23 +373,23 @@ private:
       fs = f(rhoL, uL, PL, aL, rhoR, uR, PR, aR, s);
       d = c;
       c = b;
-      fc = fb;
-      if (fa * fs < 0.) {
+      fcval = fbval;
+      if (faval * fs < 0.) {
         b = s;
-        fb = fs;
+        fbval = fs;
       } else {
         a = s;
-        fa = fs;
+        faval = fs;
       }
 
       // if |f(a)| < |f(b)| then swap (a,b) end if
-      if (std::abs(fa) < std::abs(fb)) {
+      if (std::abs(faval) < std::abs(fbval)) {
         double tmp = a;
         a = b;
         b = tmp;
-        tmp = fa;
-        fa = fb;
-        fb = tmp;
+        tmp = faval;
+        faval = fbval;
+        fbval = tmp;
       }
     }
     return b;

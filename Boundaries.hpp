@@ -73,9 +73,9 @@
   cells[0]._grad_rho = cells[1]._grad_rho;                                     \
   cells[0]._grad_u = cells[1]._grad_u;                                         \
   cells[0]._grad_P = cells[1]._grad_P;                                         \
-  cells[ncell + 1]._grad_rho = cells[ncell + 1]._grad_rho;                     \
-  cells[ncell + 1]._grad_u = cells[ncell + 1]._grad_u;                         \
-  cells[ncell + 1]._grad_P = cells[ncell + 1]._grad_P;
+  cells[ncell + 1]._grad_rho = cells[ncell]._grad_rho;                         \
+  cells[ncell + 1]._grad_u = cells[ncell]._grad_u;                             \
+  cells[ncell + 1]._grad_P = cells[ncell]._grad_P;
 #elif BOUNDARIES == BOUNDARIES_REFLECTIVE
 #define boundary_conditions_gradients()                                        \
   /* reverse the sign of the gradients and do some magic to get an accurate    \
@@ -84,7 +84,7 @@
   cells[0]._grad_u =                                                           \
       -cells[1]._grad_u - cells[1]._grad_u -                                   \
       4. * cells[0]._u / (cells[0]._midpoint - cells[1]._midpoint);            \
-  cells[0]._grad_P = cells[1]._grad_P;                                         \
+  cells[0]._grad_P = -cells[1]._grad_P;                                        \
   cells[ncell + 1]._grad_rho = -cells[ncell]._grad_rho;                        \
   cells[ncell + 1]._grad_u =                                                   \
       -cells[ncell]._grad_u -                                                  \

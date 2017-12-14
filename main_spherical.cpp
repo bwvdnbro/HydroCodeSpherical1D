@@ -16,6 +16,14 @@
  * along with HydroCodeSpherical1D. If not, see <http://www.gnu.org/licenses/>.
  ******************************************************************************/
 
+/**
+ * @file main_spherical.cpp
+ *
+ * @brief Main program.
+ *
+ * @author Bert Vandenbroucke (bv7@st-andrews.ac.uk)
+ */
+
 // project includes
 #include "Bondi.hpp"             // for EOS_BONDI, BOUNDARIES_BONDI, IC_BONDI
 #include "Boundaries.hpp"        // for non Bondi boundary conditions
@@ -41,7 +49,8 @@
 #include <omp.h>
 #include <sstream>
 
-//#define NO_LOGFILE
+/*! @brief Activate this to disable fancy log output. */
+#define NO_LOGFILE
 
 /**
  * @brief Get the current time as a string.
@@ -289,6 +298,8 @@ int main(int argc, char **argv) {
   std::string ic_file_name(IC_FILE_NAME);
   double transition_width = IONISATION_TRANSITION_WIDTH;
   double bondi_pressure_contrast = BONDI_PRESSURE_CONTRAST;
+  // disable unused variable warnings
+  (void)bondi_pressure_contrast;
 
   // now overwrite with the actual command line parameters (if specified)
   if (argc > 1) {
@@ -339,7 +350,7 @@ int main(int argc, char **argv) {
 
   std::cout << "Initial ionisation radius: "
             << INITIAL_IONISATION_RADIUS * UNIT_LENGTH_IN_SI / AU_IN_SI
-            << std::endl;
+            << "AU (" << INITIAL_IONISATION_RADIUS << ")" << std::endl;
 
   std::cout << "Point mass: " << MASS_POINT_MASS * UNIT_MASS_IN_SI << " kg"
             << std::endl;
@@ -352,10 +363,10 @@ int main(int argc, char **argv) {
   std::cout << "Time in between snapshots: "
             << (MAXTIME / NUMBER_OF_SNAPS) * UNIT_TIME_IN_YR << " yr "
             << std::endl;
-  std::cout << "Minimum radius: " << RMIN * UNIT_LENGTH_IN_AU << " AU"
-            << std::endl;
-  std::cout << "Maximum radius: " << RMAX * UNIT_LENGTH_IN_AU << " AU"
-            << std::endl;
+  std::cout << "Minimum radius: " << RMIN * UNIT_LENGTH_IN_AU << " AU (" << RMIN
+            << ")" << std::endl;
+  std::cout << "Maximum radius: " << RMAX * UNIT_LENGTH_IN_AU << " AU (" << RMAX
+            << ")" << std::endl;
 
 // figure out how many threads we are using and tell the user about this
 #pragma omp parallel
@@ -402,7 +413,9 @@ int main(int argc, char **argv) {
 
   // Courant factor for the CFL time step criterion
   // we use a very conservative value
-  const double courant_factor = 0.05;
+  const double courant_factor = COURANT_FACTOR;
+
+  std::cout << "Courant factor: " << courant_factor << std::endl;
 
   // convert the input primitive variables into conserved variables, and compute
   // the initial time step
@@ -455,11 +468,15 @@ int main(int argc, char **argv) {
   boundary_conditions_initialize();
   ionisation_initialize();
 
-  // initialize the Riemann solver
-  // we use a fast HLLC solver
-  // replace "HLLCRiemannSolver" with "RiemannSolver" to use a slower, exact
-  // solver
+// initialize the Riemann solver
+// we use a fast HLLC solver
+// replace "HLLCRiemannSolver" with "RiemannSolver" to use a slower, exact
+// solver
+#if RIEMANNSOLVER_TYPE == RIEMANNSOLVER_TYPE_HLLC
   HLLCRiemannSolver solver(GAMMA);
+#elif RIEMANNSOLVER_TYPE == RIEMANNSOLVER_TYPE_EXACT
+  RiemannSolver solver(GAMMA);
+#endif
 
   // initialize some variables used to guesstimate the remaing run time
   Timer step_time;
@@ -490,7 +507,7 @@ int main(int argc, char **argv) {
     // update the primitive variables based on the values of the conserved
     // variables and the current cell volume
     // also compute the new time step
-    min_integer_dt = integer_maxtime;
+    min_integer_dt = snaptime;
 #pragma omp parallel for reduction(min : min_integer_dt)
     for (uint_fast32_t i = 1; i < ncell + 1; ++i) {
       cells[i]._rho = cells[i]._m / cells[i]._V;

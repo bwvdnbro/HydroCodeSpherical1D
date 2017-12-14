@@ -78,4 +78,11 @@
 /*! @brief Smooth transition from ionised to neutral. */
 #define IONISATION_TRANSITION_SMOOTH 2
 
+// Possible types of Riemann solver
+
+/*! @brief Exact Riemann solver. */
+#define RIEMANNSOLVER_TYPE_EXACT 1
+/*! @brief HLLC Riemann solver. */
+#define RIEMANNSOLVER_TYPE_HLLC 2
+
 #endif // OPTIONNAMES_HPP

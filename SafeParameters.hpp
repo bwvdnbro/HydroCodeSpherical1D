@@ -104,6 +104,17 @@
 #endif
 #endif
 
+// check Riemann solver type
+#ifndef RIEMANNSOLVER_TYPE
+#error "No Riemann solver selected!"
+#else
+#if RIEMANNSOLVER_TYPE != RIEMANNSOLVER_TYPE_EXACT &&                          \
+    RIEMANNSOLVER_TYPE != RIEMANNSOLVER_TYPE_HLLC
+#pragma message(value_of_macro(RIEMANNSOLVER_TYPE))
+#error "Invalid Riemann solver selected!"
+#endif
+#endif
+
 // include derived parameters
 #include "DerivedParameters.hpp"
 
