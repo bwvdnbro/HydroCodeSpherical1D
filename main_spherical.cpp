@@ -265,8 +265,8 @@ static inline uint_fast64_t round_power2_down(uint_fast64_t x) {
  *    when configuring the code). Note that the number of values in the file
  *    should match the value of "ncell".
  *  - transition_width: Width of the linear transition region between ionised
- *    and neutral region (if LINEAR_TRANSITION was selected when configuring the
- *    code). Should be given in internal length units.
+ *    and neutral region (if IONISATION_TRANSITION_SMOOTH was selected when
+ *    configuring the code). Should be given in internal length units.
  *  - bondi_pressure_contrast: Pressure contrast between ionised and neutral
  *    region. The pressure contrast consist of the ratio of ionised and neutral
  *    temperature AND the factor two change in mean particle mass between

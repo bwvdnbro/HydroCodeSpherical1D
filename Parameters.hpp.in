@@ -48,9 +48,9 @@
  *  configuration). */
 #define NUMBER_OF_SNAPS (@number_of_snaps@)
 
-/*! @brief Default width of the ionisation transition region (in internal units
- *  of L). */
-#define IONISATION_TRANSITION_WIDTH (1.5 * 0.05)
+/*! @brief Default width of the ionisation transition region (in AU; set by the
+ *  configuration). */
+#define IONISATION_TRANSITION_WIDTH_IN_AU (@ionisation_transition_width_in_au@)
 
 /*! @brief Choice of boundary conditions (set by the configuration). */
 #define BOUNDARIES @boundaries@

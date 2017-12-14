@@ -60,6 +60,7 @@ check_configuration_option(unit_mass_in_si 2.479e31)
 check_configuration_option(unit_length_in_si 1.2e13)
 check_configuration_option(ionisation_mode "IONISATION_MODE_SELF_CONSISTENT")
 check_configuration_option(ionisation_transition "IONISATION_TRANSITION_SMOOTH")
+check_configuration_option(ionisation_transition_width_in_au 5.)
 
 configure_file(${PROJECT_SOURCE_DIR}/Parameters.hpp.in
                ${PROJECT_SOURCE_DIR}/Parameters.hpp @only)

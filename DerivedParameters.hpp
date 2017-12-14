@@ -46,6 +46,10 @@
 #define INITIAL_IONISATION_RADIUS                                              \
   (INITIAL_IONISATION_RADIUS_IN_AU * AU_IN_SI / UNIT_LENGTH_IN_SI)
 
+/*! @brief Ionisation transition width (in internal units of L). */
+#define IONISATION_TRANSITION_WIDTH                                            \
+  (IONISATION_TRANSITION_WIDTH_IN_AU * AU_IN_SI / UNIT_LENGTH_IN_SI)
+
 /*! @brief Size of the simulation "box" (in internal units of L). */
 #define BOXSIZE (RMAX - RMIN)
 
