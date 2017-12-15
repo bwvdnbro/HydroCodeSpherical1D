@@ -35,7 +35,7 @@
  */
 #define add_spherical_source_term()                                            \
   _Pragma("omp parallel for") for (uint_fast32_t i = 1; i < ncell + 1; ++i) {  \
-    if (cells[i]._m > 0. && cells[i]._E > 0.) {                                \
+    if (cells[i]._m > 0.) {                                                    \
       const double r = cells[i]._midpoint;                                     \
       const double rinv = 1. / r;                                              \
       const double Vinv = 1. / cells[i]._V;                                    \

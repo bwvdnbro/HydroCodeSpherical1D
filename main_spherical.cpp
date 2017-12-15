@@ -350,7 +350,7 @@ int main(int argc, char **argv) {
 
   std::cout << "Initial ionisation radius: "
             << INITIAL_IONISATION_RADIUS * UNIT_LENGTH_IN_SI / AU_IN_SI
-            << "AU (" << INITIAL_IONISATION_RADIUS << ")" << std::endl;
+            << " AU (" << INITIAL_IONISATION_RADIUS << ")" << std::endl;
 
   std::cout << "Point mass: " << MASS_POINT_MASS * UNIT_MASS_IN_SI << " kg"
             << std::endl;

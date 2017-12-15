@@ -43,6 +43,21 @@
 #if EOS == EOS_BONDI
 
 /**
+ * @brief Initialize the log file used to log the ionisation radius as a
+ * function of time.
+ *
+ * Only done if the ionisation mode is IONISATION_MODE_SELF_CONSISTENT.
+ */
+#if IONISTATION_MODE == IONISATION_MODE_SELF_CONSISTENT
+#define initialize_bondi_rfile()                                               \
+  double rion_old = 0.;                                                        \
+                                                                               \
+  std::ofstream bondi_rfile("ionisation_radius.dat");
+#elif IONISATION_MODE == IONISATION_MODE_CONSTANT
+#define initialize_bondi_rfile()
+#endif
+
+/**
  * @brief Initialize ionisation variables.
  *
  * We need to initialize the smooth transition (if LINEAR_TRANSITION was
@@ -51,9 +66,7 @@
  * function of time.
  */
 #define ionisation_initialize()                                                \
-  double rion_old = 0.;                                                        \
-                                                                               \
-  std::ofstream bondi_rfile("ionisation_radius.dat");                          \
+  initialize_bondi_rfile();                                                    \
                                                                                \
   const double bondi_S =                                                       \
       (transition_width > 0.) ? 3. / (4. * transition_width) : 0.;             \
@@ -268,30 +281,57 @@
     cells[0]._grad_P = cells[1]._grad_P;                                       \
   }                                                                            \
                                                                                \
-  /* upper boundary: need to change this to correct expression */              \
+  /* upper boundary: compute gradient using the known expression outside rmax  \
+   */                                                                          \
   {                                                                            \
-    double rhomin, rhoplu, umin, uplu, Pmin, Pplu, dmin, dplu;                 \
-    rhomin = cells[ncell + 1]._rho - cells[ncell]._rho;                        \
-    rhoplu = cells[ncell + 1]._rho - bondi_density_max;                        \
-    umin = cells[ncell + 1]._u - cells[ncell]._u;                              \
-    uplu = cells[ncell + 1]._u - bondi_velocity_max;                           \
-    Pmin = cells[ncell + 1]._P - cells[ncell]._P;                              \
-    Pplu = cells[ncell + 1]._P - bondi_pressure_max;                           \
-    if (std::abs(rhomin) < std::abs(rhoplu)) {                                 \
-      cells[ncell + 1]._grad_rho = rhomin / CELLSIZE;                          \
-    } else {                                                                   \
-      cells[ncell + 1]._grad_rho = rhoplu / CELLSIZE;                          \
-    }                                                                          \
-    if (std::abs(umin) < std::abs(uplu)) {                                     \
-      cells[ncell + 1]._grad_u = umin / CELLSIZE;                              \
-    } else {                                                                   \
-      cells[ncell + 1]._grad_u = uplu / CELLSIZE;                              \
-    }                                                                          \
-    if (std::abs(Pmin) < std::abs(Pplu)) {                                     \
-      cells[ncell + 1]._grad_P = Pmin / CELLSIZE;                              \
-    } else {                                                                   \
-      cells[ncell + 1]._grad_P = Pplu / CELLSIZE;                              \
-    }                                                                          \
+    const double dx_inv = 1. / CELLSIZE;                                       \
+    const double half_dx = HALF_CELLSIZE;                                      \
+                                                                               \
+    const double gradrho = (bondi_density_max - cells[ncell]._rho) * dx_inv;   \
+    const double rhomax = std::max(cells[ncell]._rho, bondi_density_max);      \
+    const double rhomin = std::min(cells[ncell]._rho, bondi_density_max);      \
+    const double rho_ext_plu = half_dx * gradrho;                              \
+    const double rho_ext_min = -half_dx * gradrho;                             \
+    const double rhoextmax = std::max(rho_ext_min, rho_ext_plu);               \
+    const double rhoextmin = std::min(rho_ext_min, rho_ext_plu);               \
+    const double alpha_rho =                                                   \
+        (gradrho != 0.)                                                        \
+            ? std::min(                                                        \
+                  1., 0.5 * std::min(                                          \
+                                (rhomax - cells[ncell + 1]._rho) / rhoextmax,  \
+                                (rhomin - cells[ncell + 1]._rho) / rhoextmin)) \
+            : 1.;                                                              \
+    cells[ncell + 1]._grad_rho = alpha_rho * gradrho;                          \
+                                                                               \
+    const double gradu = (bondi_velocity_max - cells[ncell]._u) * dx_inv;      \
+    const double umax = std::max(cells[ncell]._u, bondi_velocity_max);         \
+    const double umin = std::min(cells[ncell]._u, bondi_velocity_max);         \
+    const double u_ext_plu = half_dx * gradu;                                  \
+    const double u_ext_min = -half_dx * gradu;                                 \
+    const double uextmax = std::max(u_ext_min, u_ext_plu);                     \
+    const double uextmin = std::min(u_ext_min, u_ext_plu);                     \
+    const double alpha_u =                                                     \
+        (gradu != 0.)                                                          \
+            ? std::min(1.,                                                     \
+                       0.5 * std::min((umax - cells[ncell + 1]._u) / uextmax,  \
+                                      (umin - cells[ncell + 1]._u) / uextmin)) \
+            : 1.;                                                              \
+    cells[ncell + 1]._grad_u = alpha_u * gradu;                                \
+                                                                               \
+    const double gradP = (bondi_pressure_max - cells[ncell]._P) * dx_inv;      \
+    const double Pmax = std::max(cells[ncell]._P, bondi_pressure_max);         \
+    const double Pmin = std::min(cells[ncell]._P, bondi_pressure_max);         \
+    const double P_ext_plu = half_dx * gradP;                                  \
+    const double P_ext_min = -half_dx * gradP;                                 \
+    const double Pextmax = std::max(P_ext_min, P_ext_plu);                     \
+    const double Pextmin = std::min(P_ext_min, P_ext_plu);                     \
+    const double alpha_P =                                                     \
+        (gradP != 0.)                                                          \
+            ? std::min(1.,                                                     \
+                       0.5 * std::min((Pmax - cells[ncell + 1]._P) / Pextmax,  \
+                                      (Pmin - cells[ncell + 1]._P) / Pextmin)) \
+            : 1.;                                                              \
+    cells[ncell + 1]._grad_P = alpha_P * gradP;                                \
   }
 
 #endif // BOUNDARIES == BOUNDARIES_BONDI
