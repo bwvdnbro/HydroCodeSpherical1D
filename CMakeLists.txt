@@ -1,6 +1,6 @@
 ################################################################################
 # This file is part of HydroCodeSpherical1D
-# Copyright (C) 2016 Bert Vandenbroucke (bert.vandenbroucke@gmail.com)
+# Copyright (C) 2017 Bert Vandenbroucke (bert.vandenbroucke@gmail.com)
 #
 # HydroCodeSpherical1D is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
