@@ -592,7 +592,7 @@ int main(int argc, char **argv) {
       const double rhoextmax = std::max(rho_ext_min, rho_ext_plu);
       const double rhoextmin = std::min(rho_ext_min, rho_ext_plu);
       const double alpha_rho =
-          (gradrho > 0.)
+          (gradrho != 0.)
               ? std::min(1.,
                          0.5 * std::min((rhomax - cells[i]._rho) / rhoextmax,
                                         (rhomin - cells[i]._rho) / rhoextmin))
@@ -607,7 +607,7 @@ int main(int argc, char **argv) {
       const double uextmax = std::max(u_ext_min, u_ext_plu);
       const double uextmin = std::min(u_ext_min, u_ext_plu);
       const double alpha_u =
-          (gradu > 0.)
+          (gradu != 0.)
               ? std::min(1., 0.5 * std::min((umax - cells[i]._u) / uextmax,
                                             (umin - cells[i]._u) / uextmin))
               : 1.;
@@ -621,7 +621,7 @@ int main(int argc, char **argv) {
       const double Pextmax = std::max(P_ext_min, P_ext_plu);
       const double Pextmin = std::min(P_ext_min, P_ext_plu);
       const double alpha_P =
-          (gradP > 0.)
+          (gradP != 0.)
               ? std::min(1., 0.5 * std::min((Pmax - cells[i]._P) / Pextmax,
                                             (Pmin - cells[i]._P) / Pextmin))
               : 1.;
