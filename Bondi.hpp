@@ -48,7 +48,7 @@
  *
  * Only done if the ionisation mode is IONISATION_MODE_SELF_CONSISTENT.
  */
-#if IONISTATION_MODE == IONISATION_MODE_SELF_CONSISTENT
+#if IONISATION_MODE == IONISATION_MODE_SELF_CONSISTENT
 #define initialize_bondi_rfile()                                               \
   double rion_old = 0.;                                                        \
                                                                                \
@@ -69,8 +69,8 @@
   initialize_bondi_rfile();                                                    \
                                                                                \
   const double bondi_S =                                                       \
-      (transition_width > 0.) ? 3. / (4. * transition_width) : 0.;             \
-  const double bondi_A = -32. * bondi_S * bondi_S * bondi_S / 27.;             \
+      (transition_width > 0.) ? 3. / (2. * transition_width) : 0.;             \
+  const double bondi_A = -16. * bondi_S * bondi_S * bondi_S / 27.;             \
                                                                                \
   /* correction factor to grow the central mass with the accreted material     \
      currently disabled */                                                     \
@@ -404,6 +404,73 @@ inline static double get_bondi_Q_factor(const double M) {
 }
 
 /**
+ * @brief Get the indefinite integral of the smooth neutral fraction polynomial.
+ *
+ * For reference: the polynomial has general shape
+ * \f[
+ *   f(r) = A (r - R_i)^3 + B (r - R_i)^2 + C (r - R_i) + D,
+ * \f]
+ * with \f$A,B,C,D\f$ constant parameters, and \f$R_i\f$ the ionisation radius.
+ * We apply the following conditions to find the unknown parameters:
+ *  - at the ionisation radius, the value of the polynomial should be 0.5:
+ *    \f[
+ *      f(R_i) = \frac{1}{2}.
+ *    \f]
+ *  - at the ionisation radius, the value of the first derivative should be
+ *    \f$S\f$, the maximal allowed slope for the polynomial:
+ *    \f[
+ *      f'(R_i) = S.
+ *    \f]
+ *  - at the points \f$r_l = R_i - \frac{1}{2}W\f$ and \f$r_u = R_i +
+ *    \frac{1}{2}W\f$, the values of the polynomial should be 0 and 1:
+ *    \f[
+ *      f(R_i - \frac{1}{2}W) = 0,
+ *    \f]
+ *    \f[
+ *      f(R_i + \frac{1}{2}W) = 1.
+ *    \f]
+ *  - at \f$r_l\f$ and \f$r_u\f$, the first derivative should be zero to get a
+ *    smooth connection between the polynomial and the constant regions:
+ *    \f[
+ *      f'(R_i - \frac{1}{2}W) = 0,
+ *    \f]
+ *    \f[
+ *      f'(R_i + \frac{1}{2}W) = 0.
+ *    \f]
+ * We find the following simplified expression for the polynomial:
+ * \f[
+ *   f(r) = -\frac{16}{27}S^3 (r - R_i)^3 + S (r - R_i) + \frac{1}{2},
+ * \f]
+ * with \f$W = \frac{3}{2S}\f$.
+ *
+ * The function below is the indefinite integral
+ * \f[
+ *   60 \int f(r) r^2 {\rm{}d}r
+ * \f]
+ * (the prefactor 60 is used to save on a factor 3 in the total neutral fraction
+ * computation and a division by 20 in the definite integral computation below).
+ *
+ * @param A Smooth transition parameter A (in internal units of L^-3).
+ * @param S Smooth transition parameter S (steepest allowed slope in the
+ * transition; in internal units of L^-1).
+ * @param rion Ionisation radius (in internal units of L).
+ * @param r Point where we want to evaluate the indefinite integral (in internal
+ * units of L).
+ * @return Indefinite integral (in integral units of L; times 20).
+ */
+inline static double neutral_fraction_integral_function(const double A,
+                                                        const double S,
+                                                        const double rion,
+                                                        const double r) {
+  const double r2 = r * r;
+  const double r3 = r * r2;
+  const double rion2 = rion * rion;
+  const double rion3 = rion * rion2;
+  return r3 * (10. * r3 * A - 36. * r2 * A * rion + 45. * r * A * rion2 +
+               15. * r * S - 20. * A * rion3 - 20. * rion * S + 10.);
+}
+
+/**
  * @brief Get the neutral fraction within the given interval using an exact
  * integration of the smooth transition expression.
  *
@@ -419,14 +486,9 @@ inline static double get_bondi_Q_factor(const double M) {
 inline static double
 get_neutral_fraction_integral(const double A, const double S, const double rion,
                               const double rmin, const double rmax) {
-  const double rmaxrel = rmax - rion;
-  const double rminrel = rmin - rion;
-  const double rdiff = rmax - rmin;
-  const double rmaxrel2 = rmaxrel * rmaxrel;
-  const double rmaxrel4 = rmaxrel2 * rmaxrel2;
-  const double rminrel2 = rminrel * rminrel;
-  const double rminrel4 = rminrel2 * rminrel2;
-  return A * (rmaxrel4 - rminrel4) + S * (rmaxrel2 - rminrel2) + 0.5 * rdiff;
+  return (neutral_fraction_integral_function(A, S, rion, rmax) -
+          neutral_fraction_integral_function(A, S, rion, rmin)) /
+         20.;
 }
 
 /**
@@ -455,14 +517,14 @@ inline static double get_neutral_fraction(const double rmin, const double rmax,
     return 0.;
   } else if (rmin < rion_min && rmax >= rion_min) {
     return get_neutral_fraction_integral(A, S, rion, rion_min, rmax) /
-           (rmax - rmin);
+           (rmax * rmax * rmax - rmin * rmin * rmin);
   } else if (rmin >= rion_min && rmax <= rion_max) {
     return get_neutral_fraction_integral(A, S, rion, rmin, rmax) /
-           (rmax - rmin);
+           (rmax * rmax * rmax - rmin * rmin * rmin);
   } else if (rmin < rion_max && rmax > rion_max) {
     return (get_neutral_fraction_integral(A, S, rion, rmin, rion_max) +
-            (rmax - rion_max)) /
-           (rmax - rmin);
+            (rmax * rmax * rmax - rion_max * rion_max * rion_max)) /
+           (rmax * rmax * rmax - rmin * rmin * rmin);
   } else {
     return 1.;
   }
@@ -470,7 +532,8 @@ inline static double get_neutral_fraction(const double rmin, const double rmax,
   if (rmax < rion) {
     return 0;
   } else if (rmin < rion) {
-    return (rmax - rion) / (rmax - rmin);
+    return (rmax * rmax * rmax - rion * rion * rion) /
+           (rmax * rmax * rmax - rmin * rmin * rmin);
   } else {
     return 1.;
   }

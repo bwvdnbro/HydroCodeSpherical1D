@@ -1,5 +1,8 @@
 #! /bin/bash
 
+# run a Bondi setup simulation in the folder given below, with the number of
+# threads set below
+
 folder=build_bondi_setup
 nthread=8
 

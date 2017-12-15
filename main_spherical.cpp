@@ -120,7 +120,7 @@ void write_snapshot(uint_fast64_t istep, double time, const Cell *cells,
  * @param ncell Number of cells.
  */
 void write_binary_snapshot(const Cell *cells, const unsigned int ncell) {
-  std::ofstream ofile("lastsnap_sod.dat");
+  std::ofstream ofile("lastsnap.dat");
   for (uint_fast32_t i = 1; i < ncell + 1; ++i) {
     ofile.write(reinterpret_cast<const char *>(&cells[i]._rho), sizeof(double));
     ofile.write(reinterpret_cast<const char *>(&cells[i]._u), sizeof(double));

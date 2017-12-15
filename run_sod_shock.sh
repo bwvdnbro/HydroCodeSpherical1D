@@ -1,5 +1,8 @@
 #! /bin/bash
 
+# run a Sod shock test in the folder set below, using the number of threads set
+# below
+
 folder=build_sod
 nthread=8
 

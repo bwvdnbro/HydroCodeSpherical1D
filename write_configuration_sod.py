@@ -1,3 +1,5 @@
+# set up for the Sod shock test
+
 import get_cmake_command
 
 sod_options = {
