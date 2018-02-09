@@ -76,7 +76,7 @@
 #ifndef IC
 #error "No initial condition selected!"
 #else
-#if IC != IC_SOD && IC != IC_BONDI && IC != IC_FILE
+#if IC != IC_SOD && IC != IC_BONDI && IC != IC_FILE && IC != IC_BLASTWAVES
 #pragma message(value_of_macro(IC))
 #error "Invalid initial condition selected!"
 #endif
@@ -112,6 +112,16 @@
     RIEMANNSOLVER_TYPE != RIEMANNSOLVER_TYPE_HLLC
 #pragma message(value_of_macro(RIEMANNSOLVER_TYPE))
 #error "Invalid Riemann solver selected!"
+#endif
+#endif
+
+// check dimensionality
+#ifndef DIMENSIONALITY
+#error "No dimensionality selected!"
+#else
+#if DIMENSIONALITY != DIMENSIONALITY_1D && DIMENSIONALITY != DIMENSIONALITY_3D
+#pragma message(value_of_macro(DIMENSIONALITY))
+#error "Invalid dimensionality selected!"
 #endif
 #endif
 

@@ -60,6 +60,9 @@
 #define IC_BONDI 2
 /*! @brief Initial condition read in from a binary file. */
 #define IC_FILE 3
+/*! @brief Initial condition for the Woodward & Colella (1984) interacting
+ *  blast waves test. */
+#define IC_BLASTWAVES 4
 
 // Possible modes of ionisation.
 
@@ -84,5 +87,12 @@
 #define RIEMANNSOLVER_TYPE_EXACT 1
 /*! @brief HLLC Riemann solver. */
 #define RIEMANNSOLVER_TYPE_HLLC 2
+
+// Possible types of dimensionality
+
+/*! @brief 1D solver. */
+#define DIMENSIONALITY_1D 1
+/*! @brief 3D spherically symmetric solver. */
+#define DIMENSIONALITY_3D 2
 
 #endif // OPTIONNAMES_HPP

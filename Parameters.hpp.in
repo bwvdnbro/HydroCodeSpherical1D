@@ -112,4 +112,7 @@
 /*! @brief Type of Riemann solver to use. */
 #define RIEMANNSOLVER_TYPE @riemannsolver_type@
 
+/*! @brief Dimensionality. */
+#define DIMENSIONALITY @dimensionality@
+
 #endif // PARAMETERS_HPP

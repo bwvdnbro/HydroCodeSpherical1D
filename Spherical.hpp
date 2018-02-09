@@ -33,6 +33,9 @@
  * We use a second order Runge-Kutta step and apply an operator splitting method
  * to couple the source term to the hydro step.
  */
+#if DIMENSIONALITY == DIMENSIONALITY_1D
+#define add_spherical_source_term()
+#elif DIMENSIONALITY == DIMENSIONALITY_3D
 #define add_spherical_source_term()                                            \
   _Pragma("omp parallel for") for (uint_fast32_t i = 1; i < ncell + 1; ++i) {  \
     if (cells[i]._m > 0.) {                                                    \
@@ -62,5 +65,6 @@
       cells[i]._E = U[2] * cells[i]._V;                                        \
     }                                                                          \
   }
+#endif
 
 #endif // SPHERICAL_HPP

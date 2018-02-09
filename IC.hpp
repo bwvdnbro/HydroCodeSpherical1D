@@ -34,6 +34,8 @@
 #include "Sod.hpp"
 #elif IC == IC_FILE
 #include "ICFile.hpp"
+#elif IC == IC_BLASTWAVES
+#include "BlastWaves.hpp"
 #endif
 
 #endif // IC_HPP
