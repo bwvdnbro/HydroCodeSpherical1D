@@ -54,6 +54,8 @@ configuration_options = {
 "ionisation_transition_width_in_au": 5.,
 "courant_factor": 0.05,
 "riemannsolver_type": "RIEMANNSOLVER_TYPE_HLLC",
+"dimensionality": "DIMENSIONALITY_3D",
+"hydro_order": 2,
 }
 
 ##

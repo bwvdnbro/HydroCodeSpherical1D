@@ -109,10 +109,13 @@
 /*! @brief Courant factor for the time step criterion. */
 #define COURANT_FACTOR (@courant_factor@)
 
-/*! @brief Type of Riemann solver to use. */
+/*! @brief Type of Riemann solver to use (set by the configuration). */
 #define RIEMANNSOLVER_TYPE @riemannsolver_type@
 
-/*! @brief Dimensionality. */
+/*! @brief Dimensionality (set by the configuration). */
 #define DIMENSIONALITY @dimensionality@
+
+/*! @brief Hydro scheme order (set by the configuration). */
+#define HYDRO_ORDER @hydro_order@
 
 #endif // PARAMETERS_HPP

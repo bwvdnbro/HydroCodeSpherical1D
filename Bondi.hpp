@@ -556,7 +556,7 @@ inline static double get_neutral_fraction(const double rmin, const double rmax,
     const double r_inv = RBONDI / RMAX;                                        \
     cells[i]._rho = bondi_density(r_inv);                                      \
     cells[i]._u = bondi_velocity(r_inv);                                       \
-    cells[i]._P = ISOTHERMAL_C_SQUARED * BONDI_DENSITY;                        \
+    cells[i]._P = ISOTHERMAL_C_SQUARED * cells[i]._rho;                        \
     const double r2 = cells[i]._midpoint * cells[i]._midpoint;                 \
     cells[i]._a = -G_INTERNAL * MASS_POINT_MASS / r2;                          \
     cells[i]._nfac = 0.;                                                       \

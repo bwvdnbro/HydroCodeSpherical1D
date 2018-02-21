@@ -632,7 +632,7 @@ int main(int argc, char **argv) {
     // handled by Boundaries.hpp (and Bondi.hpp for BOUNDARIES_BONDI)
     boundary_conditions_gradients();
 
-#ifdef NO_GRADIENTS
+#if HYDRO_ORDER == 1
 // reset all gradients to zero to disable the second order scheme
 #pragma omp parallel for
     for (uint_fast32_t i = 0; i < ncell + 2; ++i) {

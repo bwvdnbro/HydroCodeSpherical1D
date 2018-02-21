@@ -64,6 +64,7 @@ check_configuration_option(ionisation_transition_width_in_au 5.)
 check_configuration_option(courant_factor 0.05)
 check_configuration_option(riemannsolver_type "RIEMANNSOLVER_TYPE_HLLC")
 check_configuration_option(dimensionality "DIMENSIONALITY_3D")
+check_configuration_option(hydro_order 2)
 
 configure_file(${PROJECT_SOURCE_DIR}/Parameters.hpp.in
                ${PROJECT_BINARY_DIR}/Parameters.hpp @only)

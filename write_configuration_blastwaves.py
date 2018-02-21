@@ -17,7 +17,9 @@ sod_options = {
 "unit_length_in_si": 1.,
 "g_internal": 6.67408e-11,
 "courant_factor": 0.01,
-"riemannsolver_type": "RIEMANNSOLVER_TYPE_EXACT"
+"riemannsolver_type": "RIEMANNSOLVER_TYPE_EXACT",
+"dimensionality": "DIMENSIONALITY_1D",
+"hydro_order": 1
 }
 
 print get_cmake_command.get_cmake_command(sod_options)
