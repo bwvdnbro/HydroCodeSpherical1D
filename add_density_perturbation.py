@@ -60,7 +60,7 @@ fac = 0.1
 
 name = sys.argv[1]
 outname = sys.argv[2]
-if sys.argv[3] == "neg":
+if len(sys.argv) > 3 and sys.argv[3] == "neg":
   fac = -fac
 
 print fac
