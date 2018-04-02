@@ -52,16 +52,14 @@ def cubic_spline(x, center, h, factor):
                            np.zeros(len(x))))                  
 
 # Make sure we have 2 command line arguments: the input and output file name
-if len(sys.argv) < 3:
-  print "Usage: python add_density_perturbation input_file output_file [neg]"
+if len(sys.argv) < 4:
+  print "Usage: python add_density_perturbation input_file output_file rho_p"
   exit()
 
-fac = 0.1
 
 name = sys.argv[1]
 outname = sys.argv[2]
-if len(sys.argv) > 3 and sys.argv[3] == "neg":
-  fac = -fac
+fac = float(sys.argv[3])
 
 print fac
 

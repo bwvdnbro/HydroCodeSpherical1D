@@ -3,6 +3,13 @@ import matplotlib
 matplotlib.use("Agg")
 import pylab as pl
 import scipy.special.lambertw as lambertw
+import sys
+
+if len(sys.argv) < 2:
+  print "Usage: python fig_convergence_seed.py amplitude"
+  exit()
+
+amplitude = float(sys.argv[1])
 
 pl.rcParams["text.usetex"] = True
 pl.rcParams["figure.figsize"] = (6, 8)
@@ -97,9 +104,10 @@ def plot(f, ax):
 
 fig, ax = pl.subplots(2, 1, sharex = True)
 
-for f in ["convergence_seed_000.txt", "convergence_seed_325.txt",
-          "convergence_seed_425.txt", "convergence_seed_650.txt",
-          "convergence_seed_900.txt"]:
+filename = "convergence_seed_{nr:03d}_{sign}{amplitude}.txt"
+for nr in [0, 325, 425, 650, 900]:
+  f = filename.format(nr = nr, sign = 'p' if amplitude > 0. else 'm',
+                      amplitude = abs(amplitude))
   plot(f, ax)
 
 ax[0].legend(loc = "best")
@@ -112,5 +120,6 @@ ax[1].set_ylabel("$v$ (km s$^{-1}$)")
 ax[1].set_xlabel("$r$ (AU)")
 
 pl.tight_layout()
-pl.savefig("fig_convergence_seed.png")
+pl.savefig("fig_convergence_seed_{sign}{amplitude}.png".format(
+  sign = 'p' if amplitude > 0. else 'm', amplitude = abs(amplitude))
 pl.close()

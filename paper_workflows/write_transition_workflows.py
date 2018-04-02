@@ -65,12 +65,10 @@ icname = "convergence_stable_w{width:.0f}_{resolution}.dat"
 snapname = "convergence_stable_w{width:.0f}_2700.txt"
 instable_radius_name = \
   "convergence_instability_w{width:.0f}_{resolution}_radius.dat"
-seed_radius_name = "convergence_seed_w{width:.0f}_{resolution}_radius.dat"
-seed_command = "python source/add_density_perturbation.py ic_noseed.dat ic.dat"
-seed_neg_radius_name = \
-  "convergence_seed_neg_w{width:.0f}_{resolution}_radius.dat"
-seed_neg_command = \
-  "python source/add_density_perturbation.py ic_noseed.dat ic.dat neg"
+seed_radius_name = \
+  "convergence_seed_w{width:.0f}_{resolution}_{sign}{amplitude}_radius.dat"
+seed_command = \
+  "python source/add_density_perturbation.py ic_noseed.dat ic.dat {amplitude}"
 
 for width in [1., 2., 3., 4., 5.]:
   for resolution in [300, 900, 2700, 5400]:
@@ -102,30 +100,20 @@ for width in [1., 2., 3., 4., 5.]:
     print "\t{git}; {cmake}; {make}; {run}\n".format(
       git = git_command, cmake = cmake_run, make = make_command,
       run = run_command)
-    
-    seed_radius_name_this = seed_radius_name.format(width = width,
-                                                    resolution = resolution)
-    output = "{0}->ionisation_radius.dat".format(seed_radius_name_this)
-    if resolution == 2700 and width == 5.0:
-      for snap in [0, 325, 425, 650, 900]:
-        output += " convergence_seed_{0:03d}.txt->snapshot_{0:04d}.txt".format(
-          snap)
-    input = "{0}->ic_noseed.dat".format(icname_this)
-    print "{output}: {input}".format(output = output, input = input)
-    print "\t{git}; {cmake}; {make}; {seed}; {run}\n".format(
-      git = git_command, cmake = cmake_run, make = make_command,
-      seed = seed_command, run = run_command)
 
-    seed_neg_radius_name_this = \
-      seed_neg_radius_name.format(width = width, resolution = resolution)
-    output = "{0}->ionisation_radius.dat".format(seed_neg_radius_name_this)
-    if resolution == 2700 and width == 5.0:
-      for snap in [0, 325, 425, 650, 900]:
-        output += \
-          " convergence_seed_neg_{0:03d}.txt->snapshot_{0:04d}.txt".format(
-            snap)
-    input = "{0}->ic_noseed.dat".format(icname_this)
-    print "{output}: {input}".format(output = output, input = input)
-    print "\t{git}; {cmake}; {make}; {seed}; {run}\n".format(
-      git = git_command, cmake = cmake_run, make = make_command,
-      seed = seed_neg_command, run = run_command)
+    for amplitude in [0.1, 2., -0.1]:
+      seed_radius_name_this = seed_radius_name.format(
+        width = width, resolution = resolution,
+        sign = 'p' if amplitude > 0. else 'm', amplitude = abs(amplitude))
+      output = "{0}->ionisation_radius.dat".format(seed_radius_name_this)
+      if resolution == 2700 and width == 5.0:
+        for snap in [0, 325, 425, 650, 900]:
+          output += \
+            " convergence_seed_{0:03d}_{1}{2}.txt->snapshot_{0:04d}.txt".format(
+              snap, 'p' if amplitude > 0. else 'm', abs(amplitude))
+      input = "{0}->ic_noseed.dat".format(icname_this)
+      seed_command_this = seed_command.format(amplitude = amplitude)
+      print "{output}: {input}".format(output = output, input = input)
+      print "\t{git}; {cmake}; {make}; {seed}; {run}\n".format(
+        git = git_command, cmake = cmake_run, make = make_command,
+        seed = seed_command_this, run = run_command)
