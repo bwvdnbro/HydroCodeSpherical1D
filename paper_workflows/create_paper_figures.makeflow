@@ -34,7 +34,7 @@ fig_convergence_seed_radius_m0.1.png: fig_convergence_seed_radius.py convergence
 	LOCAL python fig_convergence_seed_radius.py -0.1
 
 CATEGORY="simulation"
-CORES=16
+CORES=8
 DISK=1000
 MEMORY=1000
 

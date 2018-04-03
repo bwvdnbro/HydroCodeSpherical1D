@@ -121,5 +121,5 @@ ax[1].set_xlabel("$r$ (AU)")
 
 pl.tight_layout()
 pl.savefig("fig_convergence_seed_{sign}{amplitude}.png".format(
-  sign = 'p' if amplitude > 0. else 'm', amplitude = abs(amplitude))
+  sign = 'p' if amplitude > 0. else 'm', amplitude = abs(amplitude)))
 pl.close()

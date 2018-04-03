@@ -43,4 +43,4 @@ ax[4].set_xlabel("$t$ (yr)")
 ax[0].legend(loc = "lower left", ncol = 2)
 pl.tight_layout()
 pl.savefig("fig_convergence_seed_radius_{sign}{amplitude}.png".format(
-  sign = 'p' if amplitude > 0. else 'm', amplitude = abs(amplitude))
+  sign = 'p' if amplitude > 0. else 'm', amplitude = abs(amplitude)))
