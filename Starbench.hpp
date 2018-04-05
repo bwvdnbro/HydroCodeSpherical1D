@@ -1,6 +1,6 @@
 /*******************************************************************************
  * This file is part of HydroCodeSpherical1D
- * Copyright (C) 2017 Bert Vandenbroucke (bert.vandenbroucke@gmail.com)
+ * Copyright (C) 2018 Bert Vandenbroucke (bert.vandenbroucke@gmail.com)
  *
  * HydroCodeSpherical1D is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -17,27 +17,28 @@
  ******************************************************************************/
 
 /**
- * @file IC.hpp
+ * @file Starbench.hpp
  *
- * @brief Set up initial conditions.
+ * @brief Set up initial conditions for the Starbench test.
  *
  * @author Bert Vandenbroucke (bv7@st-andrews.ac.uk)
  */
-#ifndef IC_HPP
-#define IC_HPP
+#ifndef STARBENCH_HPP
+#define STARBENCH_HPP
 
-#include "SafeParameters.hpp"
+/**
+ * @brief Initialize the given cells.
+ *
+ * @param cells Cells to initialize.
+ * @param ncell Number of cells.
+ */
+#define initialize(cells, ncell)                                               \
+  _Pragma("omp parallel for") for (unsigned int i = 1; i < ncell + 1; ++i) {   \
+    cells[i]._rho = 5.21e-18 / UNIT_DENSITY_IN_SI;                             \
+    cells[i]._u = 0.;                                                          \
+    cells[i]._P = 1.;                                                          \
+    cells[i]._a = 0.;                                                          \
+    cells[i]._nfac = 0.;                                                       \
+  }
 
-#if IC == IC_BONDI
-#include "Bondi.hpp"
-#elif IC == IC_SOD
-#include "Sod.hpp"
-#elif IC == IC_FILE
-#include "ICFile.hpp"
-#elif IC == IC_BLASTWAVES
-#include "BlastWaves.hpp"
-#elif IC == IC_STARBENCH
-#include "Starbench.hpp"
-#endif
-
-#endif // IC_HPP
+#endif // STARBENCH_HPP

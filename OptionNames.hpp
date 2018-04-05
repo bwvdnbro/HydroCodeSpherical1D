@@ -63,6 +63,8 @@
 /*! @brief Initial condition for the Woodward & Colella (1984) interacting
  *  blast waves test. */
 #define IC_BLASTWAVES 4
+/*! @brief Initial condition for the Starbench test. */
+#define IC_STARBENCH 5
 
 // Possible modes of ionisation.
 
