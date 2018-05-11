@@ -179,7 +179,7 @@
     }                                                                          \
   }                                                                            \
   /* check if we need to write to the file */                                  \
-  if (std::abs(rion - rion_old) > 1.e-2 * std::abs(rion + rion_old)) {         \
+  if (std::abs(rion - rion_old) > 1.e-3 * std::abs(rion + rion_old)) {         \
     const double curtime =                                                     \
         current_integer_time * time_conversion_factor * UNIT_TIME_IN_SI;       \
     const double ionrad = rion * UNIT_LENGTH_IN_SI;                            \
