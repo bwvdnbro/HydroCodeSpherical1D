@@ -376,7 +376,7 @@ double bondi_density(double rinv) {
  * @return Value of the fluid velocity (in internal units of L T^-1).
  */
 double bondi_velocity(double rinv) {
-  return -1.01 * std::sqrt(ISOTHERMAL_C_SQUARED * u2_over_cs2(rinv));
+  return -std::sqrt(ISOTHERMAL_C_SQUARED * u2_over_cs2(rinv));
 }
 
 /**
