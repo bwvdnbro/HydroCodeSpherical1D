@@ -98,6 +98,9 @@ instability_logs = ""
 # names of all ionisation radius log files that should be included in the
 # seeded instability test plot
 seed_logs = ""
+# names of all ionisation radius log files that should be included in the
+# seeded instability radius comparison plot
+seed_comp_logs = ""
 # loop over all transition widths
 for width in [1., 2., 3., 4., 5.]:
   # loop over all resolutions
@@ -187,14 +190,7 @@ for width in [1., 2., 3., 4., 5.]:
           "\tLOCAL python fig_convergence_seed.py {amplitude}\n\n".format(
             amplitude = amplitude)
 
-        plot_input = seed_radius_name_this + " fig_radius.py"
-        plot_output = seed_plot_name.format(
-          sign = 'p' if amplitude > 0. else 'm', amplitude = abs(amplitude))
-        plot_command_this = plot_command.format(amplitude = amplitude)
-        plot_lines += "{output}: {input}\n".format(
-          output = plot_output, input = plot_input)
-        plot_lines += "\tLOCAL {plot_command}\n\n".format(
-          plot_command = plot_command_this)
+        seed_comp_logs += " " + seed_radius_name_this
 
       input = "{0}->ic_noseed.dat".format(icname_this)
       
@@ -249,7 +245,7 @@ cmake_run = get_cmake_command.get_cmake_command(bondi_run_this, "source/")
 output = "instability_radius.dat->ionisation_radius.dat"
 snaps = ""
 for t in [10, 20, 40, 80]:
-  output += " instability_t{0:02d}.txt->snapshot_{0:04d}.txt".format(
+  output += " instability_t{0:02d}.txt->snapshot_{1:04d}.txt".format(
     t,  t * 50)
   snaps += " instability_t{0:02d}.txt".format(t)
 input = "stable_solution.dat->ic.dat"
@@ -263,7 +259,12 @@ output = "figure_instability.png figure_instability_radius.png"
 plot_lines += "{output}: {input}\n".format(output = output, input = input)
 plot_lines += "\tLOCAL python fig_instability.py\n\n"
 
-ofile = open("create_paper_figures_2.makeflow", "w")
+input = "fig_radius_all.py" + seed_comp_logs
+output = "fig_radius_seed_all.png"
+plot_lines += "{output}: {input}\n".format(output = output, input = input)
+plot_lines += "\tLOCAL python fig_radius_all.py\n\n"
+
+ofile = open("create_paper_figures.makeflow", "w")
 ofile.write("""CATEGORY="plot"
 CORES=1
 DISK=1000

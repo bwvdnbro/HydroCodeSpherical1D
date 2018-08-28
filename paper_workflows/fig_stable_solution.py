@@ -104,8 +104,8 @@ plot("stable_solution_t40.txt", ax)
 
 ax[0].legend(loc = "best")
 
-ax[0].plot(ra, rhoa, "--")
-ax[1].plot(ra, va, "--")
+ax[0].plot(ra, rhoa, "k--", linewidth = 0.8)
+ax[1].plot(ra, va, "k--", linewidth = 0.8)
 ax[0].set_ylabel("$\\rho{}$ (g cm$^{-3}$)")
 ax[1].set_ylabel("$v$ (km s$^{-1}$)")
 
