@@ -5,9 +5,7 @@ import pylab as pl
 import scipy.special.lambertw as lambertw
 
 pl.rcParams["text.usetex"] = True
-pl.rcParams["figure.figsize"] = (6, 8)
-pl.rcParams["font.size"] = 14
-pl.rcParams["axes.labelsize"] = 18
+pl.rcParams["figure.figsize"] = (4.5, 4)
 
 gamma = 5. / 3.
 
@@ -112,7 +110,7 @@ ax[1].set_ylabel("$v$ (km s$^{-1}$)")
 ax[1].set_xlabel("$r$ (AU)")
 
 pl.tight_layout()
-pl.savefig("figure_stable_solution.png")
+pl.savefig("figure_stable_solution.eps", dpi = 300)
 pl.close()
 
 # relative error
@@ -125,7 +123,7 @@ rhoa, va, Pa, na = np.where(data[:,0] < r_ion, ionised_bondi(data[:,0]),
 # unit conversion
 data[:,0] /= au_in_si
 
-pl.rcParams["figure.figsize"] = (6, 8)
+pl.rcParams["figure.figsize"] = (4.5, 4)
 
 fig, ax = pl.subplots(2, 1, sharex = True)
 
@@ -135,4 +133,4 @@ ax[0].set_ylabel("$|\\rho{}_s - \\rho{}_a| / |\\rho{}_s + \\rho{}_a|$")
 ax[1].set_ylabel("$|v_s - v_a| / |v_s + v_a|$")
 ax[1].set_xlabel("$r$ (AU)")
 pl.tight_layout()
-pl.savefig("figure_stable_solution_reldiff.png")
+pl.savefig("figure_stable_solution_reldiff.eps", dpi = 300)

@@ -5,9 +5,7 @@ import pylab as pl
 import scipy.special.lambertw as lambertw
 
 pl.rcParams["text.usetex"] = True
-pl.rcParams["figure.figsize"] = (6, 8)
-pl.rcParams["font.size"] = 14
-pl.rcParams["axes.labelsize"] = 18
+pl.rcParams["figure.figsize"] = (4.5, 4)
 
 gamma = 5. / 3.
 
@@ -112,7 +110,7 @@ ax[1].set_ylabel("$v$ (km s$^{-1}$)")
 ax[1].set_xlabel("$r$ (AU)")
 
 pl.tight_layout()
-pl.savefig("figure_instability.png")
+pl.savefig("figure_instability.eps", dpi = 300)
 pl.close()
 
 # ionisation radius
@@ -121,7 +119,7 @@ fp = np.memmap("instability_radius.dat", dtype = 'd', mode = 'r')
 
 data = fp.reshape((-1, 3))
 
-pl.rcParams["figure.figsize"] = (6, 4)
+pl.rcParams["figure.figsize"] = (4.5, 2)
 
 pl.gca().axhline(y = 30, linestyle = "--", color = "k")
 pl.gca().axhline(y = 10, linestyle = "-", color = "k")
@@ -129,4 +127,4 @@ pl.plot(data[:, 0] / yr_in_si, data[:, 1] / au_in_si)
 pl.xlabel("$t$ (yr)")
 pl.ylabel("$R_I$ (AU)")
 pl.tight_layout()
-pl.savefig("figure_instability_radius.png")
+pl.savefig("figure_instability_radius.eps", dpi = 300)

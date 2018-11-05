@@ -12,9 +12,7 @@ if len(sys.argv) < 2:
 amplitude = float(sys.argv[1])
 
 pl.rcParams["text.usetex"] = True
-pl.rcParams["figure.figsize"] = (6, 8)
-pl.rcParams["font.size"] = 14
-pl.rcParams["axes.labelsize"] = 18
+pl.rcParams["figure.figsize"] = (4.5, 4)
 
 gamma = 5. / 3.
 
@@ -120,6 +118,7 @@ ax[1].set_ylabel("$v$ (km s$^{-1}$)")
 ax[1].set_xlabel("$r$ (AU)")
 
 pl.tight_layout()
-pl.savefig("fig_convergence_seed_{sign}{amplitude}.png".format(
-  sign = 'p' if amplitude > 0. else 'm', amplitude = abs(amplitude)))
+pl.savefig("fig_convergence_seed_{sign}{amplitude}.eps".format(
+  sign = 'p' if amplitude > 0. else 'm', amplitude = abs(amplitude)),
+  dpi = 300)
 pl.close()

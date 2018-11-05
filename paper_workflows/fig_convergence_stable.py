@@ -3,11 +3,10 @@ import matplotlib
 matplotlib.use("Agg")
 import pylab as pl
 import scipy.special.lambertw as lambertw
+import mpl_toolkits.axes_grid1.inset_locator as inset
 
 pl.rcParams["text.usetex"] = True
-pl.rcParams["figure.figsize"] = (12, 8)
-pl.rcParams["font.size"] = 14
-pl.rcParams["axes.labelsize"] = 18
+pl.rcParams["figure.figsize"] = (4.5, 5)
 
 gamma = 5. / 3.
 
@@ -82,42 +81,55 @@ ra /= au_in_si
 rhoa *= 0.001
 va *= 0.001
 
-def plot(f, ax):
+def plot(f, ax, zoomrho, zoomv):
   data = np.loadtxt("convergence_stable_" + f)
   data[:,0] /= au_in_si
   data[:,1] *= 0.001
   data[:,2] *= 0.001
-  ax[0][0].semilogy(data[:,0], data[:,1], "-",
-                    label = "$W = {0}$ AU".format(f[1:2]))
-  ax[1][0].plot(data[:,0], data[:,2], "-")
-  ax[0][1].semilogy(data[:,0], data[:,1], "-")
-  ax[1][1].plot(data[:,0], data[:,2], "-")
+  W = float(f[1:2])
+  label = None
+  if W < 3.:
+    label = "$W = {0:.0f}$ AU".format(W)
+  ax[0].semilogy(data[:,0], data[:,1], "-", label = label)
+  label = None
+  if W > 2.:
+    label = "$W = {0:.0f}$ AU".format(W)
+  ax[1].plot(data[:,0], data[:,2], "-", label = label)
+  zoomrho.semilogy(data[:,0], data[:,1], "-")
+  zoomv.plot(data[:,0], data[:,2], "-")
 
-fig, ax = pl.subplots(2, 2, sharex = "col")
+fig, ax = pl.subplots(2, 1, sharex = "col")
+zoomrho = inset.inset_axes(ax[0], width = "40%", height = "50%", loc = 1)
+zoomv = inset.inset_axes(ax[1], width = "100%", height = "100%", loc = 4,
+                         bbox_to_anchor = (0.6, 0.1, 0.4, 0.5),
+                         bbox_transform = ax[1].transAxes)
 
-plot("w1_2700.txt", ax)
-plot("w2_2700.txt", ax)
-plot("w3_2700.txt", ax)
-plot("w4_2700.txt", ax)
-plot("w5_2700.txt", ax)
+plot("w1_2700.txt", ax, zoomrho, zoomv)
+plot("w2_2700.txt", ax, zoomrho, zoomv)
+plot("w3_2700.txt", ax, zoomrho, zoomv)
+plot("w4_2700.txt", ax, zoomrho, zoomv)
+plot("w5_2700.txt", ax, zoomrho, zoomv)
 
-ax[0][0].plot(ra, rhoa, "k--", linewidth = 0.8)
-ax[1][0].plot(ra, va, "k--", linewidth = 0.8)
+ax[0].plot(ra, rhoa, "k--", linewidth = 0.8)
+ax[1].plot(ra, va, "k--", linewidth = 0.8)
 
-ax[0][1].plot(ra, rhoa, "k--", linewidth = 0.8)
-ax[1][1].plot(ra, va, "k--", linewidth = 0.8)
+zoomrho.plot(ra, rhoa, "k--", linewidth = 0.8)
+zoomv.plot(ra, va, "k--", linewidth = 0.8)
 
-ax[0][0].set_ylabel("$\\rho{}$ (g cm$^{-3}$)")
-ax[1][0].set_ylabel("$v$ (km s$^{-1}$)")
+ax[0].set_ylabel("$\\rho{}$ (g cm$^{-3}$)")
+ax[1].set_ylabel("$v$ (km s$^{-1}$)")
 
-ax[1][1].set_xlim(25., 35.)
-ax[0][1].set_ylim(2.e-17, 5.e-17)
-ax[1][1].set_ylim(-33., -26.)
-ax[1][0].set_xlabel("$r$ (AU)")
-ax[1][1].set_xlabel("$r$ (AU)")
+ax[0].set_ylim(3.e-18, 2.e-16)
+ax[1].set_ylim(-50., -8.)
+zoomrho.set_xlim(25., 35.)
+zoomv.set_xlim(25., 35.)
+zoomrho.set_ylim(2.e-17, 4.2e-17)
+zoomv.set_ylim(-33., -26.)
+ax[1].set_xlabel("$r$ (AU)")
 
-ax[0][0].legend(loc = "best")
+ax[0].legend(loc = "lower left", ncol = 2)
+ax[1].legend(loc = "upper left", ncol = 2)
 
 pl.tight_layout()
-pl.savefig("fig_convergence_stable.png")
+pl.savefig("fig_convergence_stable.eps", dpi = 300)
 pl.close()

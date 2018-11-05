@@ -82,7 +82,7 @@ seed_radius_name = \
 seed_command = \
   "python source/add_density_perturbation.py ic_noseed.dat ic.dat {amplitude}"
 # name for the plot of the ionisation radius for a seeded instability run
-seed_plot_name = "fig_radius_{sign}{amplitude}.png"
+seed_plot_name = "fig_radius_{sign}{amplitude}.eps"
 # command necessary to plot the ionisation radius for a seeded instability run
 plot_command = "python fig_radius.py {amplitude}"
 
@@ -182,7 +182,7 @@ for width in [1., 2., 3., 4., 5.]:
         output += extra_snaps
 
         plot_input = "fig_convergence_seed.py" + extra_snaps
-        plot_output = "fig_convergence_seed_{0}{1}.png".format(
+        plot_output = "fig_convergence_seed_{0}{1}.eps".format(
           'p' if amplitude > 0. else 'm', abs(amplitude))
         plot_lines += "{output}: {input}\n".format(
           output = plot_output, input = plot_input)
@@ -204,17 +204,17 @@ for width in [1., 2., 3., 4., 5.]:
       if amplitude == -0.1:
         seed_logs += " " + seed_radius_name_this
 
-plot_lines += "fig_convergence_stable.png: fig_convergence_stable.py" + \
+plot_lines += "fig_convergence_stable.eps: fig_convergence_stable.py" + \
               transition_snaps + "\n"
 plot_lines += "\tLOCAL python fig_convergence_stable.py\n\n"
 
 plot_lines += \
-  "fig_convergence_instability.png: fig_convergence_instability.py" + \
+  "fig_convergence_instability.eps: fig_convergence_instability.py" + \
   instability_logs + "\n"
 plot_lines += "\tLOCAL python fig_convergence_instability.py\n\n"
 
 plot_lines += \
-  "fig_convergence_seed_radius.png: fig_convergence_seed_radius.py" + \
+  "fig_convergence_seed_radius_m0.1.eps: fig_convergence_seed_radius.py" + \
   seed_logs + "\n"
 plot_lines += "\tLOCAL python fig_convergence_seed_radius.py -0.1\n\n"
 
@@ -235,7 +235,7 @@ seed_lines += "\t{git}; {cmake}; {make}; {run}\n\n".format(
   run = run_command)
 
 input = "fig_stable_solution.py" + snaps
-output = "figure_stable_solution.png figure_stable_solution_reldiff.png"
+output = "figure_stable_solution.eps figure_stable_solution_reldiff.eps"
 plot_lines += "{output}: {input}\n".format(output = output, input = input)
 plot_lines += "\tLOCAL python fig_stable_solution.py\n\n"
 
@@ -255,12 +255,12 @@ seed_lines += "\t{git}; {cmake}; {make}; {run}\n\n".format(
   run = run_command)
 
 input = "fig_instability.py instability_radius.dat" + snaps
-output = "figure_instability.png figure_instability_radius.png"
+output = "figure_instability.eps figure_instability_radius.eps"
 plot_lines += "{output}: {input}\n".format(output = output, input = input)
 plot_lines += "\tLOCAL python fig_instability.py\n\n"
 
 input = "fig_radius_all.py" + seed_comp_logs
-output = "fig_radius_seed_all.png"
+output = "fig_radius_seed_all.eps"
 plot_lines += "{output}: {input}\n".format(output = output, input = input)
 plot_lines += "\tLOCAL python fig_radius_all.py\n\n"
 
