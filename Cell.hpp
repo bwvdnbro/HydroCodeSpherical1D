@@ -59,6 +59,12 @@ public:
   /*! @brief Total energy (in internal units of M L^2 T^-2). */
   double _E;
 
+  /*! @brief Left face fluxes. */
+  double _left_flux[3];
+
+  /*! @brief Right face fluxes. */
+  double _right_flux[3];
+
   // geometrical quantities
 
   /*! @brief 1D cell volume: radial length of the spherical shell (in internal
