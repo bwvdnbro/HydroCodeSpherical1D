@@ -43,43 +43,48 @@ import sys
 # 1 + bump inside the bump region.
 ##
 def cubic_spline(x, center, h, factor):
-  return 1. + factor * \
-         np.where(abs(x - center) < 0.5 * h,
-                  1. - 6. * ((x - center) / h)**2 + \
-                    6. * (abs(x - center) / h)**3,
-                  np.where(abs(x - center) < h,
-                           2. * (1. - abs(x - center) / h)**3,
-                           np.zeros(len(x))))                  
+    return 1.0 + factor * np.where(
+        abs(x - center) < 0.5 * h,
+        1.0 - 6.0 * ((x - center) / h) ** 2 + 6.0 * (abs(x - center) / h) ** 3,
+        np.where(
+            abs(x - center) < h,
+            2.0 * (1.0 - abs(x - center) / h) ** 3,
+            np.zeros(len(x)),
+        ),
+    )
+
 
 # Make sure we have 2 command line arguments: the input and output file name
 if len(sys.argv) < 4:
-  print "Usage: python add_density_perturbation input_file output_file rho_p"
-  exit()
+    print("Usage: python add_density_perturbation input_file output_file rho_p")
+    exit()
 
 
 name = sys.argv[1]
 outname = sys.argv[2]
 fac = float(sys.argv[3])
 
-print fac
+print(fac)
 
 # memory-map the input file to a read-only numpy array
-fp = np.memmap(name, dtype = 'd', mode = 'r')
+fp = np.memmap(name, dtype="d", mode="r")
 # we know the array has 4 columns
 data = fp.reshape((-1, 4))
 
 # set up the spatial grid with the right resolution
-r = np.linspace(10., 100., len(data) + 1)
+r = np.linspace(10.0, 100.0, len(data) + 1)
 r = 0.5 * (r[1:] + r[:-1])
 
 # make a copy of the original data, which we will modify below
 copy = data.copy()
 
 # apply the density bump filter
-copy[:,0] *= np.where(r > 60., np.where(r < 70., cubic_spline(r, 65., 5., fac),
-                                                 np.ones(len(r))),
-                               np.ones(len(r)))
+copy[:, 0] *= np.where(
+    r > 60.0,
+    np.where(r < 70.0, cubic_spline(r, 65.0, 5.0, fac), np.ones(len(r))),
+    np.ones(len(r)),
+)
 
 # store the result in a new memory-mapped file
-ofp = np.memmap(outname, dtype = 'd', mode = 'w+', shape = copy.shape)
+ofp = np.memmap(outname, dtype="d", mode="w+", shape=copy.shape)
 ofp[:] = copy[:]

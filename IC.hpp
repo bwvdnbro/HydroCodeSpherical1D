@@ -38,6 +38,8 @@
 #include "BlastWaves.hpp"
 #elif IC == IC_STARBENCH
 #include "Starbench.hpp"
+#elif IC == IC_SEDOV
+#include "Sedov.hpp"
 #endif
 
 #endif // IC_HPP

@@ -30,32 +30,33 @@
 # default options: do not touch this!
 
 configuration_options = {
-"rmin_in_au": 10.,
-"rmax_in_au": 100.,
-"ncell": 2700,
-"gamma": 1.001,
-"maxtime_in_yr": 80.,
-"number_of_snaps": 4000,
-"ic": "IC_FILE",
-"eos": "EOS_BONDI",
-"boundaries": "BOUNDARIES_BONDI",
-"isothermal_temperature_in_k": 500.,
-"potential": "POTENTIAL_POINT_MASS",
-"g_internal": 1.,
-"mass_point_mass_in_msol": 18.,
-"bondi_density_in_si": 1.e-16,
-"bondi_pressure_contrast": 32.,
-"ic_file_name": "ic.dat",
-"initial_ionisation_radius_in_au": 30.,
-"unit_mass_in_si": 2.479e31,
-"unit_length_in_si": 1.2e13,
-"ionisation_mode": "IONISATION_MODE_SELF_CONSISTENT",
-"ionisation_transition": "IONISATION_TRANSITION_SMOOTH",
-"ionisation_transition_width_in_au": 5.,
-"courant_factor": 0.05,
-"riemannsolver_type": "RIEMANNSOLVER_TYPE_HLLC",
-"dimensionality": "DIMENSIONALITY_3D",
-"hydro_order": 2,
+    "rmin_in_au": 10.0,
+    "rmax_in_au": 100.0,
+    "ncell": 2700,
+    "gamma": 1.001,
+    "maxtime_in_yr": 80.0,
+    "number_of_snaps": 4000,
+    "ic": "IC_FILE",
+    "eos": "EOS_BONDI",
+    "boundaries": "BOUNDARIES_BONDI",
+    "isothermal_temperature_in_k": 500.0,
+    "potential": "POTENTIAL_POINT_MASS",
+    "g_internal": 1.0,
+    "mass_point_mass_in_msol": 18.0,
+    "bondi_density_in_si": 1.0e-16,
+    "bondi_pressure_contrast": 32.0,
+    "ic_file_name": "ic.dat",
+    "initial_ionisation_radius_in_au": 30.0,
+    "unit_mass_in_si": 2.479e31,
+    "unit_length_in_si": 1.2e13,
+    "ionisation_mode": "IONISATION_MODE_SELF_CONSISTENT",
+    "ionisation_transition": "IONISATION_TRANSITION_SMOOTH",
+    "ionisation_transition_width_in_au": 5.0,
+    "courant_factor": 0.05,
+    "riemannsolver_type": "RIEMANNSOLVER_TYPE_HLLC",
+    "dimensionality": "DIMENSIONALITY_3D",
+    "hydro_order": 2,
+    "status_update_interval": 10.0,
 }
 
 ##
@@ -67,26 +68,27 @@ configuration_options = {
 # @param folder Folder where the CMakeLists.txt file is located.
 # @return CMake configuration command.
 ##
-def get_cmake_command(custom_options = {}, folder = ".."):
-  global configuration_options
+def get_cmake_command(custom_options={}, folder=".."):
+    global configuration_options
 
-  command = "cmake -DCMAKE_BUILD_TYPE=Release"
-  for option in configuration_options:
-    if option in custom_options:
-      value = custom_options[option]
-      custom_options[option] = "read"
-    else:
-      value = configuration_options[option]
-    command += " -D{0}={1}".format(option, value)
-  command += " " + folder
+    command = "cmake -DCMAKE_BUILD_TYPE=Release"
+    for option in configuration_options:
+        if option in custom_options:
+            value = custom_options[option]
+            custom_options[option] = "read"
+        else:
+            value = configuration_options[option]
+        command += " -D{0}={1}".format(option, value)
+    command += " " + folder
 
-  # check that all custom options were actually used
-  for option in custom_options:
-    if not custom_options[option] == "read":
-      print "Unknown option:", option
-      exit()
+    # check that all custom options were actually used
+    for option in custom_options:
+        if not custom_options[option] == "read":
+            print("Unknown option:", option)
+            exit()
 
-  return command
+    return command
+
 
 if __name__ == "__main__":
-  print get_cmake_command()
+    print(get_cmake_command())

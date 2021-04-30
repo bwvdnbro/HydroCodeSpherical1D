@@ -251,6 +251,10 @@ static inline void write_logfile(LogFile &log, Cell *cells,
  * @return Nearest lower power of 2.
  */
 static inline uint_fast64_t round_power2_down(uint_fast64_t x) {
+  if (x == 0) {
+    std::cerr << "Zero time step!" << std::endl;
+    exit(1);
+  }
   --x;
   x |= (x >> 1);
   x |= (x >> 2);
@@ -260,7 +264,32 @@ static inline uint_fast64_t round_power2_down(uint_fast64_t x) {
   x |= (x >> 32);
   x >>= 1;
   ++x;
+  if (x == 0) {
+    std::cerr << "Zero time step!" << std::endl;
+    exit(1);
+  }
   return x;
+}
+
+/**
+ * @brief Get the conserved energy for a shell based on the corresponding 1D
+ * cell properties.
+ *
+ * This function corrects for the difference between the 1D cell energy and the
+ * 3D shell energy.
+ *
+ * @param cell Cell.
+ * @return Shell energy.
+ */
+static inline double get_shell_energy(const Cell &cell) {
+  const double rho = cell._rho;
+  const double u = cell._u;
+  const double P = cell._P;
+  const double Ru = cell._uplim;
+  const double Rl = cell._lowlim;
+  const double Vs = 4. * M_PI / 3. * (Ru * Ru * Ru - Rl * Rl * Rl);
+  const double E = P * Vs / (GAMMA - 1.) + 0.5 * rho * Vs * u * u;
+  return E;
 }
 
 /**
@@ -417,11 +446,16 @@ int main(int argc, char **argv) {
 
   std::cout << "Courant factor: " << courant_factor << std::endl;
 
+  // initialize snapshot variables
+  const uint_fast64_t snaptime = integer_maxtime / NUMBER_OF_SNAPS;
+  uint_fast64_t isnap = 0;
+
   // convert the input primitive variables into conserved variables, and compute
   // the initial time step
   // we use a global time step, which is the minimum time step among all cells
-  uint_fast64_t min_integer_dt = integer_maxtime;
-#pragma omp parallel for reduction(min : min_integer_dt)
+  uint_fast64_t min_integer_dt = snaptime;
+  double Etot = 0.;
+#pragma omp parallel for reduction(min : min_integer_dt) reduction(+ : Etot)
   // convert primitive variables to conserved variables
   for (uint_fast32_t i = 1; i < ncell + 1; ++i) {
     // apply the equation of state to get the initial pressure (if necessary)
@@ -434,12 +468,26 @@ int main(int argc, char **argv) {
     cells[i]._E = cells[i]._P * cells[i]._V / (GAMMA - 1.) +
                   0.5 * cells[i]._u * cells[i]._p;
 
+    Etot += get_shell_energy(cells[i]);
+
     // time step criterion
     const double cs =
         std::sqrt(GAMMA * cells[i]._P / cells[i]._rho) + std::abs(cells[i]._u);
     const double dt = courant_factor * cells[i]._V / cs;
-    const uint_fast64_t integer_dt = (dt / maxtime) * integer_maxtime;
+    const uint_fast64_t integer_dt =
+        (dt < maxtime) ? (dt / maxtime) * integer_maxtime : integer_maxtime;
     min_integer_dt = std::min(min_integer_dt, integer_dt);
+    if (min_integer_dt == 0) {
+      std::cerr << "Cell pushes time step to 0!" << std::endl;
+      std::cerr << "dt: " << dt << std::endl;
+      std::cerr << "maxtime: " << maxtime << std::endl;
+      std::cerr << "integer_dt: " << integer_dt << std::endl;
+      std::cerr << "explicitly: " << (dt / maxtime) * integer_maxtime
+                << std::endl;
+      std::cerr << "cs: " << cs << std::endl;
+      cells[i].print();
+      exit(1);
+    }
 
     // initialize variables used for the log file
     cells[i]._last_rho = cells[i]._rho;
@@ -449,6 +497,10 @@ int main(int argc, char **argv) {
     cells[i]._last_entry = 0;
   }
 
+  std::cout << "Initial minimum timestep: " << min_integer_dt << std::endl;
+  std::cout << "Initial total energy: " << Etot * UNIT_ENERGY_IN_SI << " J"
+            << std::endl;
+
   // initialize the log file and write the first entry
   LogFile logfile("logfile.dat", 100);
   write_logfile(logfile, cells, ncell, 0., true);
@@ -456,6 +508,7 @@ int main(int argc, char **argv) {
   // set cell time steps
   // round min_integer_dt to closest smaller power of 2
   uint_fast64_t global_integer_dt = round_power2_down(min_integer_dt);
+  std::cout << "Rounded minimum timestep: " << global_integer_dt << std::endl;
 #pragma omp parallel for
   for (uint_fast32_t i = 1; i < ncell + 1; ++i) {
     cells[i]._integer_dt = global_integer_dt;
@@ -479,6 +532,7 @@ int main(int argc, char **argv) {
 #endif
 
   // initialize some variables used to guesstimate the remaing run time
+  Timer progress_timer;
   Timer step_time;
   double time_since_last = 0.;
   double time_since_start = 0.;
@@ -486,9 +540,10 @@ int main(int argc, char **argv) {
   // initialize the time stepping
   uint_fast64_t current_integer_time = 0;
   uint_fast64_t current_integer_dt = global_integer_dt;
-  // initialize snapshot variables
-  const uint_fast64_t snaptime = integer_maxtime / NUMBER_OF_SNAPS;
-  uint_fast64_t isnap = 0;
+  std::cout << "Initial system time step: "
+            << current_integer_dt * time_conversion_factor << std::endl;
+  std::cout << "Maximum time: " << integer_maxtime * time_conversion_factor
+            << std::endl;
   // main simulation loop: perform NSTEP steps
   while (current_integer_time < integer_maxtime) {
 
@@ -508,17 +563,22 @@ int main(int argc, char **argv) {
     // variables and the current cell volume
     // also compute the new time step
     min_integer_dt = snaptime;
-#pragma omp parallel for reduction(min : min_integer_dt)
+    Etot = 0.;
+#pragma omp parallel for reduction(min : min_integer_dt) reduction(+ : Etot)
     for (uint_fast32_t i = 1; i < ncell + 1; ++i) {
       cells[i]._rho = cells[i]._m / cells[i]._V;
       cells[i]._u = cells[i]._p / cells[i]._m;
       // the pressure update depends on the equation of state
       // this is handled in EOS.hpp (and Bondi.hpp for EOS_BONDI)
       update_pressure(cells[i]);
+
+      Etot += get_shell_energy(cells[i]);
+
       const double cs = std::sqrt(GAMMA * cells[i]._P / cells[i]._rho) +
                         std::abs(cells[i]._u);
       const double dt = courant_factor * cells[i]._V / cs;
-      const uint_fast64_t integer_dt = (dt / maxtime) * integer_maxtime;
+      const uint_fast64_t integer_dt =
+          (dt < maxtime) ? (dt / maxtime) * integer_maxtime : integer_maxtime;
       min_integer_dt = std::min(min_integer_dt, integer_dt);
     }
 
@@ -541,8 +601,8 @@ int main(int argc, char **argv) {
     }
     current_integer_dt = global_integer_dt;
 
-    // check if we need to output a snapshot
-    if (current_integer_time >= isnap * snaptime) {
+    // check if it is time for a status update
+    if (progress_timer.interval() >= STATUS_UPDATE_INTERVAL) {
       // yes: display some statistics and a guesstimate of the remaining run
       // time
       const double pct = current_integer_time * 100. / integer_maxtime;
@@ -564,9 +624,17 @@ int main(int argc, char **argv) {
       std::cout << "\t\t\tCentral mass: " << central_mass << " ("
                 << (central_mass / MASS_POINT_MASS) << ")" << std::endl;
 #endif
+      std::cout << "Total energy: " << Etot * UNIT_ENERGY_IN_SI << " J"
+                << std::endl;
       // reset guesstimate counters
       time_since_last = 0.;
       steps_since_last = 0;
+      // reset the progress timer
+      progress_timer.start();
+    }
+
+    // check if we need to output a snapshot
+    if (current_integer_time >= isnap * snaptime) {
       // write the actual snapshot
       write_snapshot(isnap, current_integer_time * time_conversion_factor,
                      cells, ncell);
@@ -670,9 +738,9 @@ int main(int argc, char **argv) {
       add_gravitational_prediction(cells[i], half_dt);
     }
 
-// do the flux exchange
-// to avoid thread concurrency, we compute each flux twice, and only update one
-// cell at a time
+    // do the flux exchange
+    // to avoid thread concurrency, we compute each flux twice, and only update
+    // one cell at a time
 #pragma omp parallel for
     for (uint_fast32_t i = 1; i < ncell + 1; ++i) {
       const double dt = cells[i]._dt;
@@ -787,6 +855,8 @@ int main(int argc, char **argv) {
     // update the system time
     current_integer_time += current_integer_dt;
   }
+  std::cout << "Final total energy: " << Etot * UNIT_ENERGY_IN_SI << " J"
+            << std::endl;
 
   // write the final logfile entry
   write_logfile(logfile, cells, ncell,

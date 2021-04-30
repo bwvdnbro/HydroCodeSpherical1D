@@ -66,6 +66,10 @@
 #define UNIT_PRESSURE_IN_SI                                                    \
   (UNIT_MASS_IN_SI / (UNIT_LENGTH_IN_SI * UNIT_TIME_IN_SI * UNIT_TIME_IN_SI))
 
+/*! @brief Energy unit (in kg m^2 s^-2). */
+#define UNIT_ENERGY_IN_SI                                                      \
+  (UNIT_MASS_IN_SI * UNIT_VELOCITY_IN_SI * UNIT_VELOCITY_IN_SI)
+
 // Non SI unit conversions
 
 /*! @brief Mass unit (in Msol). */

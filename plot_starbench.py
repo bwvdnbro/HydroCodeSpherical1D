@@ -28,12 +28,13 @@
 
 import numpy as np
 import matplotlib
+
 matplotlib.use("Agg")
 import pylab as pl
 
 # units: we plot time in Myr and distance in pc
 pc_in_si = 3.086e16
-Myr_in_si = (1.e6 * 365.25 * 24. * 3600.)
+Myr_in_si = 1.0e6 * 365.25 * 24.0 * 3600.0
 
 # initial ionisation radius
 au_in_si = 1.496e11
@@ -43,31 +44,32 @@ Rst_in_si = 6.5e4 * au_in_si
 ci_in_si = 1.285e4
 
 # time range for reference solutions
-t = np.linspace(0., 0.141, 1000) * Myr_in_si
+t = np.linspace(0.0, 0.141, 1000) * Myr_in_si
 
 # Spitzer solution
-Rsp_in_si = Rst_in_si * (1. + 1.75 * ci_in_si * t / Rst_in_si)**(4. / 7.)
+Rsp_in_si = Rst_in_si * (1.0 + 1.75 * ci_in_si * t / Rst_in_si) ** (4.0 / 7.0)
 
 # Hosokawa-Inutsuka solution
-Rhi_in_si = Rst_in_si * \
-            (1. + 1.75 * np.sqrt(4. / 3.) * ci_in_si * t / Rst_in_si)**(4. / 7.)
+Rhi_in_si = Rst_in_si * (
+    1.0 + 1.75 * np.sqrt(4.0 / 3.0) * ci_in_si * t / Rst_in_si
+) ** (4.0 / 7.0)
 
 file = "ionisation_radius.dat"
 
 # memory-map the binary file to a read-only numpy array
-fp = np.memmap(file, dtype = 'd', mode = 'r')
+fp = np.memmap(file, dtype="d", mode="r")
 # the file has 3 columns: the time, ionisation radius and ionising luminosity
 # ratio (in SI units)
 data = fp.reshape((-1, 3))
 
 # create the plot
-fig, ax = pl.subplots(1, 1, sharex = True, sharey = True)
-ax.plot(t / Myr_in_si, Rsp_in_si / pc_in_si, "r-", label = "Spitzer")
-ax.plot(t / Myr_in_si, Rhi_in_si / pc_in_si, "b-", label = "Hosokawa-Inutsuka")
-ax.plot(data[:,0] / Myr_in_si, data[:,1] / pc_in_si, "k.", label = "simulation")
+fig, ax = pl.subplots(1, 1, sharex=True, sharey=True)
+ax.plot(t / Myr_in_si, Rsp_in_si / pc_in_si, "r-", label="Spitzer")
+ax.plot(t / Myr_in_si, Rhi_in_si / pc_in_si, "b-", label="Hosokawa-Inutsuka")
+ax.plot(data[:, 0] / Myr_in_si, data[:, 1] / pc_in_si, "k.", label="simulation")
 ax.set_ylabel("ionisation radius (pc)")
 ax.set_xlabel("time (Myr)")
-ax.legend(loc = "best")
+ax.legend(loc="best")
 pl.tight_layout()
 # show the plot window
 pl.savefig("starbench.png")
