@@ -27,6 +27,7 @@
 #define CELL_HPP
 
 #include <cstdint>
+#include <iostream>
 
 /**
  * @brief Single cell of the grid.
@@ -57,6 +58,12 @@ public:
   double _p;
   /*! @brief Total energy (in internal units of M L^2 T^-2). */
   double _E;
+
+  /*! @brief Left face fluxes. */
+  double _left_flux[3];
+
+  /*! @brief Right face fluxes. */
+  double _right_flux[3];
 
   // geometrical quantities
 
@@ -113,6 +120,36 @@ public:
 
   /*! @brief Last neutral fraction value that was written to the log file. */
   double _last_nfac;
+
+  /**
+   * @brief Print the contents of the cell for debugging purposes.
+   */
+  inline void print() {
+    std::cerr << "Cell values:" << std::endl;
+    std::cerr << "_rho: " << _rho << std::endl;
+    std::cerr << "_u: " << _u << std::endl;
+    std::cerr << "_P: " << _P << std::endl;
+    std::cerr << "_grad_rho: " << _grad_rho << std::endl;
+    std::cerr << "_grad_u: " << _grad_u << std::endl;
+    std::cerr << "_grad_P: " << _grad_P << std::endl;
+    std::cerr << "_m: " << _m << std::endl;
+    std::cerr << "_p: " << _p << std::endl;
+    std::cerr << "_E: " << _E << std::endl;
+    std::cerr << "_V: " << _V << std::endl;
+    std::cerr << "_midpoint: " << _midpoint << std::endl;
+    std::cerr << "_lowlim: " << _lowlim << std::endl;
+    std::cerr << "_uplim: " << _uplim << std::endl;
+    std::cerr << "_a: " << _a << std::endl;
+    std::cerr << "_nfac: " << _nfac << std::endl;
+    std::cerr << "_integer_dt: " << _integer_dt << std::endl;
+    std::cerr << "_dt: " << _dt << std::endl;
+    std::cerr << "_index: " << _index << std::endl;
+    std::cerr << "_last_entry: " << _last_entry << std::endl;
+    std::cerr << "_last_rho: " << _last_rho << std::endl;
+    std::cerr << "_last_u: " << _last_u << std::endl;
+    std::cerr << "_last_P: " << _last_P << std::endl;
+    std::cerr << "_last_nfac: " << _last_nfac << std::endl;
+  };
 };
 
 #endif // CELL_HPP

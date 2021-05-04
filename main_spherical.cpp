@@ -251,6 +251,10 @@ static inline void write_logfile(LogFile &log, Cell *cells,
  * @return Nearest lower power of 2.
  */
 static inline uint_fast64_t round_power2_down(uint_fast64_t x) {
+  if (x == 0) {
+    std::cerr << "Zero time step!" << std::endl;
+    exit(1);
+  }
   --x;
   x |= (x >> 1);
   x |= (x >> 2);
@@ -260,7 +264,32 @@ static inline uint_fast64_t round_power2_down(uint_fast64_t x) {
   x |= (x >> 32);
   x >>= 1;
   ++x;
+  if (x == 0) {
+    std::cerr << "Zero time step!" << std::endl;
+    exit(1);
+  }
   return x;
+}
+
+/**
+ * @brief Get the conserved energy for a shell based on the corresponding 1D
+ * cell properties.
+ *
+ * This function corrects for the difference between the 1D cell energy and the
+ * 3D shell energy.
+ *
+ * @param cell Cell.
+ * @return Shell energy.
+ */
+static inline double get_shell_energy(const Cell &cell) {
+  const double rho = cell._rho;
+  const double u = cell._u;
+  const double P = cell._P;
+  const double Ru = cell._uplim;
+  const double Rl = cell._lowlim;
+  const double Vs = 4. * M_PI / 3. * (Ru * Ru * Ru - Rl * Rl * Rl);
+  const double E = P * Vs / (GAMMA - 1.) + 0.5 * rho * Vs * u * u;
+  return E;
 }
 
 /**
@@ -417,11 +446,16 @@ int main(int argc, char **argv) {
 
   std::cout << "Courant factor: " << courant_factor << std::endl;
 
+  // initialize snapshot variables
+  const uint_fast64_t snaptime = integer_maxtime / NUMBER_OF_SNAPS;
+  uint_fast64_t isnap = 0;
+
   // convert the input primitive variables into conserved variables, and compute
   // the initial time step
   // we use a global time step, which is the minimum time step among all cells
-  uint_fast64_t min_integer_dt = integer_maxtime;
-#pragma omp parallel for reduction(min : min_integer_dt)
+  uint_fast64_t min_integer_dt = snaptime;
+  double Etot = 0.;
+#pragma omp parallel for reduction(min : min_integer_dt) reduction(+ : Etot)
   // convert primitive variables to conserved variables
   for (uint_fast32_t i = 1; i < ncell + 1; ++i) {
     // apply the equation of state to get the initial pressure (if necessary)
@@ -434,12 +468,26 @@ int main(int argc, char **argv) {
     cells[i]._E = cells[i]._P * cells[i]._V / (GAMMA - 1.) +
                   0.5 * cells[i]._u * cells[i]._p;
 
+    Etot += get_shell_energy(cells[i]);
+
     // time step criterion
     const double cs =
         std::sqrt(GAMMA * cells[i]._P / cells[i]._rho) + std::abs(cells[i]._u);
     const double dt = courant_factor * cells[i]._V / cs;
-    const uint_fast64_t integer_dt = (dt / maxtime) * integer_maxtime;
+    const uint_fast64_t integer_dt =
+        (dt < maxtime) ? (dt / maxtime) * integer_maxtime : integer_maxtime;
     min_integer_dt = std::min(min_integer_dt, integer_dt);
+    if (min_integer_dt == 0) {
+      std::cerr << "Cell pushes time step to 0!" << std::endl;
+      std::cerr << "dt: " << dt << std::endl;
+      std::cerr << "maxtime: " << maxtime << std::endl;
+      std::cerr << "integer_dt: " << integer_dt << std::endl;
+      std::cerr << "explicitly: " << (dt / maxtime) * integer_maxtime
+                << std::endl;
+      std::cerr << "cs: " << cs << std::endl;
+      cells[i].print();
+      exit(1);
+    }
 
     // initialize variables used for the log file
     cells[i]._last_rho = cells[i]._rho;
@@ -449,6 +497,10 @@ int main(int argc, char **argv) {
     cells[i]._last_entry = 0;
   }
 
+  std::cout << "Initial minimum timestep: " << min_integer_dt << std::endl;
+  std::cout << "Initial total energy: " << Etot * UNIT_ENERGY_IN_SI << " J"
+            << std::endl;
+
   // initialize the log file and write the first entry
   LogFile logfile("logfile.dat", 100);
   write_logfile(logfile, cells, ncell, 0., true);
@@ -456,8 +508,9 @@ int main(int argc, char **argv) {
   // set cell time steps
   // round min_integer_dt to closest smaller power of 2
   uint_fast64_t global_integer_dt = round_power2_down(min_integer_dt);
+  std::cout << "Rounded minimum timestep: " << global_integer_dt << std::endl;
 #pragma omp parallel for
-  for (uint_fast32_t i = 1; i < ncell + 1; ++i) {
+  for (uint_fast32_t i = 0; i < ncell + 2; ++i) {
     cells[i]._integer_dt = global_integer_dt;
     cells[i]._dt = cells[i]._integer_dt * time_conversion_factor;
   }
@@ -479,6 +532,7 @@ int main(int argc, char **argv) {
 #endif
 
   // initialize some variables used to guesstimate the remaing run time
+  Timer progress_timer;
   Timer step_time;
   double time_since_last = 0.;
   double time_since_start = 0.;
@@ -486,9 +540,10 @@ int main(int argc, char **argv) {
   // initialize the time stepping
   uint_fast64_t current_integer_time = 0;
   uint_fast64_t current_integer_dt = global_integer_dt;
-  // initialize snapshot variables
-  const uint_fast64_t snaptime = integer_maxtime / NUMBER_OF_SNAPS;
-  uint_fast64_t isnap = 0;
+  std::cout << "Initial system time step: "
+            << current_integer_dt * time_conversion_factor << std::endl;
+  std::cout << "Maximum time: " << integer_maxtime * time_conversion_factor
+            << std::endl;
   // main simulation loop: perform NSTEP steps
   while (current_integer_time < integer_maxtime) {
 
@@ -508,17 +563,22 @@ int main(int argc, char **argv) {
     // variables and the current cell volume
     // also compute the new time step
     min_integer_dt = snaptime;
-#pragma omp parallel for reduction(min : min_integer_dt)
+    Etot = 0.;
+#pragma omp parallel for reduction(min : min_integer_dt) reduction(+ : Etot)
     for (uint_fast32_t i = 1; i < ncell + 1; ++i) {
       cells[i]._rho = cells[i]._m / cells[i]._V;
       cells[i]._u = cells[i]._p / cells[i]._m;
       // the pressure update depends on the equation of state
       // this is handled in EOS.hpp (and Bondi.hpp for EOS_BONDI)
       update_pressure(cells[i]);
+
+      Etot += get_shell_energy(cells[i]);
+
       const double cs = std::sqrt(GAMMA * cells[i]._P / cells[i]._rho) +
                         std::abs(cells[i]._u);
       const double dt = courant_factor * cells[i]._V / cs;
-      const uint_fast64_t integer_dt = (dt / maxtime) * integer_maxtime;
+      const uint_fast64_t integer_dt =
+          (dt < maxtime) ? (dt / maxtime) * integer_maxtime : integer_maxtime;
       min_integer_dt = std::min(min_integer_dt, integer_dt);
     }
 
@@ -535,14 +595,14 @@ int main(int argc, char **argv) {
     }
 // set the new cell time steps
 #pragma omp parallel for
-    for (uint_fast32_t i = 1; i < ncell + 1; ++i) {
+    for (uint_fast32_t i = 0; i < ncell + 2; ++i) {
       cells[i]._integer_dt = global_integer_dt;
       cells[i]._dt = cells[i]._integer_dt * time_conversion_factor;
     }
     current_integer_dt = global_integer_dt;
 
-    // check if we need to output a snapshot
-    if (current_integer_time >= isnap * snaptime) {
+    // check if it is time for a status update
+    if (progress_timer.interval() >= STATUS_UPDATE_INTERVAL) {
       // yes: display some statistics and a guesstimate of the remaining run
       // time
       const double pct = current_integer_time * 100. / integer_maxtime;
@@ -564,9 +624,17 @@ int main(int argc, char **argv) {
       std::cout << "\t\t\tCentral mass: " << central_mass << " ("
                 << (central_mass / MASS_POINT_MASS) << ")" << std::endl;
 #endif
+      std::cout << "Total energy: " << Etot * UNIT_ENERGY_IN_SI << " J"
+                << std::endl;
       // reset guesstimate counters
       time_since_last = 0.;
       steps_since_last = 0;
+      // reset the progress timer
+      progress_timer.start();
+    }
+
+    // check if we need to output a snapshot
+    if (current_integer_time >= isnap * snaptime) {
       // write the actual snapshot
       write_snapshot(isnap, current_integer_time * time_conversion_factor,
                      cells, ncell);
@@ -670,104 +738,75 @@ int main(int argc, char **argv) {
       add_gravitational_prediction(cells[i], half_dt);
     }
 
-// do the flux exchange
-// to avoid thread concurrency, we compute each flux twice, and only update one
-// cell at a time
+    // compute the fluxes
+    // to avoid thread concurrency, we first compute the fluxes in separate
+    // variables and then update the conserved quantities in a second loop
+#pragma omp parallel for
+    for (uint_fast32_t i = 1; i < ncell + 2; ++i) {
+      const double dt = cells[i]._dt;
+      // get the variables in the left and right state
+      const double rhoL = cells[i - 1]._rho;
+      const double uL = cells[i - 1]._u;
+      const double PL = cells[i - 1]._P;
+      const double rhoR = cells[i]._rho;
+      const double uR = cells[i]._u;
+      const double PR = cells[i]._P;
+
+      // do the second order spatial reconstruction
+      const double dmin = 0.5 * (cells[i]._midpoint - cells[i - 1]._midpoint);
+      const double dplu = -dmin;
+      double rhoL_dash, rhoR_dash, uL_dash, uR_dash, PL_dash, PR_dash;
+      rhoL_dash = rhoL + dmin * cells[i - 1]._grad_rho;
+      uL_dash = uL + dmin * cells[i - 1]._grad_u;
+      PL_dash = PL + dmin * cells[i - 1]._grad_P;
+      rhoR_dash = rhoR + dplu * cells[i]._grad_rho;
+      uR_dash = uR + dplu * cells[i]._grad_u;
+      PR_dash = PR + dplu * cells[i]._grad_P;
+
+      if (rhoL_dash < 0.) {
+        rhoL_dash = rhoL;
+      }
+      if (rhoR_dash < 0.) {
+        rhoR_dash = rhoR;
+      }
+      if (PL_dash < 0.) {
+        PL_dash = PL;
+      }
+      if (PR_dash < 0.) {
+        PR_dash = PR;
+      }
+
+      // solve the Riemann problem at the interface between the two cells
+      double mflux, pflux, Eflux;
+      solver.solve_for_flux(rhoL_dash, uL_dash, PL_dash, rhoR_dash, uR_dash,
+                            PR_dash, mflux, pflux, Eflux);
+
+      // set the left and right fluxes
+      // (unless the corresponding cell is a ghost)
+      if (i < ncell + 1) {
+        cells[i]._left_flux[0] = dt * mflux;
+        cells[i]._left_flux[1] = dt * pflux;
+        cells[i]._left_flux[2] = dt * Eflux;
+      }
+      if (i > 1) {
+        cells[i - 1]._right_flux[0] = -dt * mflux;
+        cells[i - 1]._right_flux[1] = -dt * pflux;
+        cells[i - 1]._right_flux[2] = -dt * Eflux;
+      }
+
+      // call a special function for flux that crosses the inner outflow
+      // boundary. This currently does not do anything.
+      if (i == 1) {
+        flux_into_inner_mask(dt * mflux);
+      }
+    }
+
+    // now actually do the flux exchanges by updating the conserved variables
 #pragma omp parallel for
     for (uint_fast32_t i = 1; i < ncell + 1; ++i) {
-      const double dt = cells[i]._dt;
-      // left flux
-      {
-        // get the variables in the left and right state
-        const double rhoL = cells[i - 1]._rho;
-        const double uL = cells[i - 1]._u;
-        const double PL = cells[i - 1]._P;
-        const double rhoR = cells[i]._rho;
-        const double uR = cells[i]._u;
-        const double PR = cells[i]._P;
-
-        // do the second order spatial reconstruction
-        const double dmin = 0.5 * (cells[i]._midpoint - cells[i - 1]._midpoint);
-        const double dplu = -dmin;
-        double rhoL_dash, rhoR_dash, uL_dash, uR_dash, PL_dash, PR_dash;
-        rhoL_dash = rhoL + dmin * cells[i - 1]._grad_rho;
-        uL_dash = uL + dmin * cells[i - 1]._grad_u;
-        PL_dash = PL + dmin * cells[i - 1]._grad_P;
-        rhoR_dash = rhoR + dplu * cells[i]._grad_rho;
-        uR_dash = uR + dplu * cells[i]._grad_u;
-        PR_dash = PR + dplu * cells[i]._grad_P;
-
-        if (rhoL_dash < 0.) {
-          rhoL_dash = rhoL;
-        }
-        if (rhoR_dash < 0.) {
-          rhoR_dash = rhoR;
-        }
-        if (PL_dash < 0.) {
-          PL_dash = PL;
-        }
-        if (PR_dash < 0.) {
-          PR_dash = PR;
-        }
-
-        // solve the Riemann problem at the interface between the two cells
-        double mflux, pflux, Eflux;
-        solver.solve_for_flux(rhoL_dash, uL_dash, PL_dash, rhoR_dash, uR_dash,
-                              PR_dash, mflux, pflux, Eflux);
-
-        cells[i]._m += dt * mflux;
-        cells[i]._p += dt * pflux;
-        cells[i]._E += dt * Eflux;
-
-        // call a special function for flux that crosses the inner outflow
-        // boundary. This currently does not do anything.
-        if (i == 1) {
-          flux_into_inner_mask(dt * mflux);
-        }
-      }
-      // right flux
-      {
-        // get the variables in the left and right state
-        const double rhoL = cells[i]._rho;
-        const double uL = cells[i]._u;
-        const double PL = cells[i]._P;
-        const double rhoR = cells[i + 1]._rho;
-        const double uR = cells[i + 1]._u;
-        const double PR = cells[i + 1]._P;
-
-        // do the second order spatial reconstruction
-        const double dmin = 0.5 * (cells[i + 1]._midpoint - cells[i]._midpoint);
-        const double dplu = -dmin;
-        double rhoL_dash, rhoR_dash, uL_dash, uR_dash, PL_dash, PR_dash;
-        rhoL_dash = rhoL + dmin * cells[i]._grad_rho;
-        uL_dash = uL + dmin * cells[i]._grad_u;
-        PL_dash = PL + dmin * cells[i]._grad_P;
-        rhoR_dash = rhoR + dplu * cells[i + 1]._grad_rho;
-        uR_dash = uR + dplu * cells[i + 1]._grad_u;
-        PR_dash = PR + dplu * cells[i + 1]._grad_P;
-
-        if (rhoL_dash < 0.) {
-          rhoL_dash = rhoL;
-        }
-        if (rhoR_dash < 0.) {
-          rhoR_dash = rhoR;
-        }
-        if (PL_dash < 0.) {
-          PL_dash = PL;
-        }
-        if (PR_dash < 0.) {
-          PR_dash = PR;
-        }
-
-        // solve the Riemann problem at the interface between the two cells
-        double mflux, pflux, Eflux;
-        solver.solve_for_flux(rhoL_dash, uL_dash, PL_dash, rhoR_dash, uR_dash,
-                              PR_dash, mflux, pflux, Eflux);
-
-        cells[i]._m -= dt * mflux;
-        cells[i]._p -= dt * pflux;
-        cells[i]._E -= dt * Eflux;
-      }
+      cells[i]._m += cells[i]._left_flux[0] + cells[i]._right_flux[0];
+      cells[i]._p += cells[i]._left_flux[1] + cells[i]._right_flux[1];
+      cells[i]._E += cells[i]._left_flux[2] + cells[i]._right_flux[2];
     }
 
     // add the spherical source term
@@ -787,6 +826,8 @@ int main(int argc, char **argv) {
     // update the system time
     current_integer_time += current_integer_dt;
   }
+  std::cout << "Final total energy: " << Etot * UNIT_ENERGY_IN_SI << " J"
+            << std::endl;
 
   // write the final logfile entry
   write_logfile(logfile, cells, ncell,

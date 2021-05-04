@@ -27,6 +27,84 @@
 #define SPHERICAL_HPP
 
 /**
+ * @brief Compute the spherical source term for the given specific conserved
+ * variables U (conserved quantities divided by cell volume).
+ *
+ * @param fac Pre-factor to multiply in (alpha/r * dt).
+ * @param U Specific conserved variables.
+ * @param S Output source terms.
+ */
+static inline void compute_source_term(const double fac, const double U[3],
+                                       double S[3]) {
+  const double U0inv = 1. / U[0];
+  const double U12 = U[1] * U[1];
+  const double p = (GAMMA - 1.) * (U[2] - 0.5 * U12 * U0inv);
+  S[0] = fac * U[1];
+  S[1] = fac * U12 * U0inv;
+  S[2] = fac * U[1] * U0inv * (U[2] + p);
+}
+
+/**
+ * @brief Implicitly compute new specific conserved variables based on the given
+ * initial values, time step and source term pre-factor.
+ *
+ * This version uses a second order Runge-Kutta scheme.
+ *
+ * Eq (15.36) in Toro (2009).
+ *
+ * @param dt Time step.
+ * @param Sfac Pre-factor for the source terms (alpha / r).
+ * @param Ui Initial values of the specific conserved variables.
+ * @param U New values for the specific conserved variables (output).
+ */
+static inline void second_order_runge_kutta(const double dt, const double Sfac,
+                                            const double Ui[3], double U[3]) {
+  double K1[3], K2[3];
+  compute_source_term(-dt * Sfac, Ui, K1);
+  U[0] = Ui[0] + K1[0];
+  U[1] = Ui[1] + K1[1];
+  U[2] = Ui[2] + K1[2];
+  compute_source_term(-dt * Sfac, U, K2);
+  U[0] = Ui[0] + 0.5 * (K1[0] + K2[0]);
+  U[1] = Ui[1] + 0.5 * (K1[1] + K2[1]);
+  U[2] = Ui[2] + 0.5 * (K1[2] + K2[2]);
+}
+
+/**
+ * @brief Implicitly compute new specific conserved variables based on the given
+ * initial values, time step and source term pre-factor.
+ *
+ * This version uses a fourth order Runge-Kutta scheme.
+ *
+ * Eq (15.37) in Toro (2009).
+ *
+ * @param dt Time step.
+ * @param Sfac Pre-factor for the source terms (alpha / r).
+ * @param Ui Initial values of the specific conserved variables.
+ * @param U New values for the specific conserved variables (output).
+ */
+static inline void fourth_order_runge_kutta(const double dt, const double Sfac,
+                                            const double Ui[3], double U[3]) {
+  double K1[3], K2[3], K3[3], K4[3];
+  compute_source_term(-dt * Sfac, Ui, K1);
+  U[0] = Ui[0] + 0.5 * K1[0];
+  U[1] = Ui[1] + 0.5 * K1[1];
+  U[2] = Ui[2] + 0.5 * K1[2];
+  compute_source_term(-dt * Sfac, U, K2);
+  U[0] = Ui[0] + 0.5 * K2[0];
+  U[1] = Ui[1] + 0.5 * K2[1];
+  U[2] = Ui[2] + 0.5 * K2[2];
+  compute_source_term(-dt * Sfac, U, K3);
+  U[0] = Ui[0] + K3[0];
+  U[1] = Ui[1] + K3[1];
+  U[2] = Ui[2] + K3[2];
+  compute_source_term(-dt * Sfac, U, K4);
+  U[0] = Ui[0] + (K1[0] + 2. * K2[0] + 2. * K3[0] + K4[0]) / 6.;
+  U[1] = Ui[1] + (K1[1] + 2. * K2[1] + 2. * K3[1] + K4[1]) / 6.;
+  U[2] = Ui[2] + (K1[2] + 2. * K2[2] + 2. * K3[2] + K4[2]) / 6.;
+}
+
+/**
  * @brief Add the spherical source terms.
  *
  * See Toro, 2009, chapter 17.
@@ -40,26 +118,13 @@
   _Pragma("omp parallel for") for (uint_fast32_t i = 1; i < ncell + 1; ++i) {  \
     if (cells[i]._m > 0.) {                                                    \
       const double r = cells[i]._midpoint;                                     \
-      const double rinv = 1. / r;                                              \
+      const double Sfac = 1. / r;                                              \
       const double Vinv = 1. / cells[i]._V;                                    \
       const double dt = cells[i]._dt;                                          \
       const double Ui[3] = {cells[i]._m * Vinv, cells[i]._p * Vinv,            \
                             cells[i]._E * Vinv};                               \
-      const double Ui0inv = 1. / Ui[0];                                        \
-      const double Ui12 = Ui[1] * Ui[1];                                       \
-      const double p1 = (GAMMA - 1.) * (Ui[2] - 0.5 * Ui12 * Ui0inv);          \
-      const double K1[3] = {-dt * Ui[1] * rinv, -dt * Ui12 * Ui0inv * rinv,    \
-                            -dt * Ui[1] * (Ui[2] + p1) * Ui0inv * rinv};       \
-      double U[3] = {Ui[0] + K1[0], Ui[1] + K1[1], Ui[2] + K1[2]};             \
-      const double U0inv = 1. / U[0];                                          \
-      const double U12 = U[1] * U[1];                                          \
-      const double p2 = (GAMMA - 1.) * (U[2] - 0.5 * U12 * U0inv);             \
-      const double K2[3] = {-dt * U[1] * rinv, -dt * U12 * U0inv * rinv,       \
-                            -dt * U[1] * (U[2] + p2) * U0inv * rinv};          \
-      U[0] = Ui[0] + 0.5 * (K1[0] + K2[0]);                                    \
-      U[1] = Ui[1] + 0.5 * (K1[1] + K2[1]);                                    \
-      U[2] = Ui[2] + 0.5 * (K1[2] + K2[2]);                                    \
-                                                                               \
+      double U[3];                                                             \
+      fourth_order_runge_kutta(dt, Sfac, Ui, U);                               \
       cells[i]._m = U[0] * cells[i]._V;                                        \
       cells[i]._p = U[1] * cells[i]._V;                                        \
       cells[i]._E = U[2] * cells[i]._V;                                        \

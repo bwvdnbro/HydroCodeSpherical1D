@@ -77,7 +77,7 @@
 #error "No initial condition selected!"
 #else
 #if IC != IC_SOD && IC != IC_BONDI && IC != IC_FILE && IC != IC_BLASTWAVES &&  \
-    IC != IC_STARBENCH
+    IC != IC_STARBENCH && IC != IC_SEDOV
 #pragma message(value_of_macro(IC))
 #error "Invalid initial condition selected!"
 #endif

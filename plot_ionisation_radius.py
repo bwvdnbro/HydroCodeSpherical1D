@@ -31,19 +31,19 @@ import pylab as pl
 
 # units: we plot time in years and distance in AU
 au_in_si = 1.496e11
-yr_in_si = (365.25 * 24. * 3600.)
+yr_in_si = 365.25 * 24.0 * 3600.0
 
 file = "ionisation_radius.dat"
 
 # memory-map the binary file to a read-only numpy array
-fp = np.memmap(file, dtype = 'd', mode = 'r')
+fp = np.memmap(file, dtype="d", mode="r")
 # the file has 3 columns: the time, ionisation radius and ionising luminosity
 # ratio (in SI units)
 data = fp.reshape((-1, 3))
 
 # create the plot
-fig, ax = pl.subplots(1, 1, sharex = True, sharey = True)
-ax.plot(data[:,0] / yr_in_si, data[:,1] / au_in_si)
+fig, ax = pl.subplots(1, 1, sharex=True, sharey=True)
+ax.plot(data[:, 0] / yr_in_si, data[:, 1] / au_in_si)
 ax.set_ylabel("ionisation radius (AU)")
 ax.set_xlabel("time (yr)")
 pl.tight_layout()
