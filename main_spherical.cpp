@@ -285,9 +285,13 @@ static inline double get_shell_energy(const Cell &cell) {
   const double rho = cell._rho;
   const double u = cell._u;
   const double P = cell._P;
+#if DIMENSIONALITY == DIMENSIONALITY_1D
+  const double Vs = cell._V;
+#else
   const double Ru = cell._uplim;
   const double Rl = cell._lowlim;
   const double Vs = 4. * M_PI / 3. * (Ru * Ru * Ru - Rl * Rl * Rl);
+#endif
   const double E = P * Vs / (GAMMA - 1.) + 0.5 * rho * Vs * u * u;
   return E;
 }
@@ -501,6 +505,9 @@ int main(int argc, char **argv) {
   std::cout << "Initial total energy: " << Etot * UNIT_ENERGY_IN_SI << " J"
             << std::endl;
 
+  std::ofstream energy_file("energy.txt");
+  energy_file << "0.\t" << Etot * UNIT_ENERGY_IN_SI << "\n";
+
   // initialize the log file and write the first entry
   LogFile logfile("logfile.dat", 100);
   write_logfile(logfile, cells, ncell, 0., true);
@@ -581,6 +588,9 @@ int main(int argc, char **argv) {
           (dt < maxtime) ? (dt / maxtime) * integer_maxtime : integer_maxtime;
       min_integer_dt = std::min(min_integer_dt, integer_dt);
     }
+
+    energy_file << current_integer_time * time_conversion_factor << "\t"
+                << Etot * UNIT_ENERGY_IN_SI << "\n";
 
     // now is the time to write to the log file
     write_logfile(logfile, cells, ncell,
@@ -736,6 +746,13 @@ int main(int argc, char **argv) {
 
       // add gravity prediction. Handled by Potential.hpp.
       add_gravitational_prediction(cells[i], half_dt);
+
+      cells[i]._left_flux[0] = 0.;
+      cells[i]._left_flux[1] = 0.;
+      cells[i]._left_flux[2] = 0.;
+      cells[i]._right_flux[0] = 0.;
+      cells[i]._right_flux[1] = 0.;
+      cells[i]._right_flux[2] = 0.;
     }
 
     // compute the fluxes
@@ -763,6 +780,14 @@ int main(int argc, char **argv) {
       uR_dash = uR + dplu * cells[i]._grad_u;
       PR_dash = PR + dplu * cells[i]._grad_P;
 
+      if (i == 1) {
+        boundary_left(rhoL_dash, uL_dash, PL_dash, rhoR_dash, uR_dash, PR_dash);
+      }
+      if (i == ncell) {
+        boundary_right(rhoL_dash, uL_dash, PL_dash, rhoR_dash, uR_dash,
+                       PR_dash);
+      }
+
       if (rhoL_dash < 0.) {
         rhoL_dash = rhoL;
       }
@@ -787,11 +812,19 @@ int main(int argc, char **argv) {
         cells[i]._left_flux[0] = dt * mflux;
         cells[i]._left_flux[1] = dt * pflux;
         cells[i]._left_flux[2] = dt * Eflux;
+      } else {
+        cells[i]._left_flux[0] = 0.;
+        cells[i]._left_flux[1] = 0.;
+        cells[i]._left_flux[2] = 0.;
       }
       if (i > 1) {
         cells[i - 1]._right_flux[0] = -dt * mflux;
         cells[i - 1]._right_flux[1] = -dt * pflux;
         cells[i - 1]._right_flux[2] = -dt * Eflux;
+      } else {
+        cells[i - 1]._right_flux[0] = 0.;
+        cells[i - 1]._right_flux[1] = 0.;
+        cells[i - 1]._right_flux[2] = 0.;
       }
 
       // call a special function for flux that crosses the inner outflow

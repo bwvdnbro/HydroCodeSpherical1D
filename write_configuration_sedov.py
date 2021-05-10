@@ -18,6 +18,26 @@ sedov_options = {
     "g_internal": 6.67408e-11,
     "courant_factor": 0.01,
     "riemannsolver_type": "RIEMANNSOLVER_TYPE_EXACT",
+    "dimensionality": "DIMENSIONALITY_3D",
 }
+#sedov_options = {
+#    "rmin_in_au": 0.0,
+#    "rmax_in_au": 6.68459e-12,
+#    "ncell": 1000,
+#    "gamma": 5.0 / 3.0,
+#    "maxtime_in_yr": 6.342e-9,
+#    "number_of_snaps": 10,
+#    "ic": "IC_SEDOV",
+#    "eos": "EOS_IDEAL",
+#    "boundaries": "BOUNDARIES_REFLECTIVE",
+#    "potential": "POTENTIAL_NONE",
+#    "unit_mass_in_si": 1.,
+#    "unit_length_in_si": 1.,
+#    "g_internal": 6.67408e-11,
+#    "courant_factor": 0.01,
+#    "riemannsolver_type": "RIEMANNSOLVER_TYPE_EXACT",
+#    "dimensionality": "DIMENSIONALITY_1D",
+#}
+
 
 print((get_cmake_command.get_cmake_command(sedov_options)))

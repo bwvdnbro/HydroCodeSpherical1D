@@ -26,7 +26,7 @@
 #ifndef SEDOV_HPP
 #define SEDOV_HPP
 
-#define SEDOV_NCELL_INJECTION 100
+#define SEDOV_NCELL_INJECTION 10
 
 /**
  * @brief Initialize the given cells.
@@ -34,6 +34,20 @@
  * @param cells Cells to initialize.
  * @param ncell Number of cells.
  */
+#if DIMENSIONALITY == DIMENSIONALITY_1D
+#define initialize(cells, ncell)                                               \
+  _Pragma("omp parallel for") for (unsigned int i = 1; i < ncell + 1; ++i) {   \
+    if (i < SEDOV_NCELL_INJECTION + 1) {                                       \
+      cells[i]._P = (GAMMA - 1.) * (1. / SEDOV_NCELL_INJECTION) / cells[i]._V; \
+    } else {                                                                   \
+      cells[i]._P = 1.e-6;                                                     \
+    }                                                                          \
+    cells[i]._rho = 1.;                                                        \
+    cells[i]._u = 0.;                                                          \
+    cells[i]._a = 0.;                                                          \
+    cells[i]._nfac = 0.;                                                       \
+  }
+#else
 #define initialize(cells, ncell)                                               \
   _Pragma("omp parallel for") for (unsigned int i = 1; i < ncell + 1; ++i) {   \
     if (i < SEDOV_NCELL_INJECTION + 1) {                                       \
@@ -51,5 +65,6 @@
     cells[i]._a = 0.;                                                          \
     cells[i]._nfac = 0.;                                                       \
   }
+#endif
 
 #endif // SEDOV_HPP
