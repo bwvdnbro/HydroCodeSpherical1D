@@ -59,6 +59,12 @@ public:
   /*! @brief Total energy (in internal units of M L^2 T^-2). */
   double _E;
 
+  /*! @brief 1D mass. */
+  double _m1D;
+
+  /*! @brief 1D energy. */
+  double _E1D;
+
   /*! @brief Left face fluxes. */
   double _left_flux[3];
 

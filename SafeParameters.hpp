@@ -126,6 +126,16 @@
 #endif
 #endif
 
+// check cooling mode
+#ifndef COOLING
+#error "No cooling selected!"
+#else
+#if COOLING != COOLING_NONE && COOLING != COOLING_CURVE
+#pragma message(value_of_macro(COOLING))
+#error "Invalid cooling selected!"
+#endif
+#endif
+
 // include derived parameters
 #include "DerivedParameters.hpp"
 

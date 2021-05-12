@@ -24,17 +24,20 @@
  * @author Bert Vandenbroucke (bv7@st-andrews.ac.uk)
  */
 
+// first include the parameters (safely)
+#include "SafeParameters.hpp"
+
 // project includes
 #include "Bondi.hpp"             // for EOS_BONDI, BOUNDARIES_BONDI, IC_BONDI
 #include "Boundaries.hpp"        // for non Bondi boundary conditions
 #include "Cell.hpp"              // Cell class
+#include "Cooling.hpp"           // cooling
 #include "EOS.hpp"               // for non Bondi equations of state
 #include "HLLCRiemannSolver.hpp" // fast HLLC Riemann solver
 #include "IC.hpp"                // general initial condition interface
 #include "LogFile.hpp"           // log file output
 #include "Potential.hpp"         // external gravity
 #include "RiemannSolver.hpp"     // slow exact Riemann solver
-#include "SafeParameters.hpp"    // safe way to include Parameter.hpp
 #include "Spherical.hpp"         // spherical source terms
 #include "Timer.hpp"             // program timers
 #include "Units.hpp"             // unit information
@@ -272,6 +275,29 @@ static inline uint_fast64_t round_power2_down(uint_fast64_t x) {
 }
 
 /**
+ * @brief Get the conserved mass for a shell based on the corresponding 1D
+ * cell properties.
+ *
+ * This function corrects for the difference between the 1D cell mass and the
+ * 3D shell mass.
+ *
+ * @param cell Cell.
+ * @return Shell mass.
+ */
+static inline double get_shell_mass(const Cell &cell) {
+  const double rho = cell._rho;
+#if DIMENSIONALITY == DIMENSIONALITY_1D
+  const double Vs = cell._V;
+#else
+  const double Ru = cell._uplim;
+  const double Rl = cell._lowlim;
+  const double Vs = 4. * M_PI / 3. * (Ru * Ru * Ru - Rl * Rl * Rl);
+#endif
+  const double M = rho * Vs;
+  return M;
+}
+
+/**
  * @brief Get the conserved energy for a shell based on the corresponding 1D
  * cell properties.
  *
@@ -388,6 +414,11 @@ int main(int argc, char **argv) {
   std::cout << "Point mass: " << MASS_POINT_MASS * UNIT_MASS_IN_SI << " kg"
             << std::endl;
 
+  std::cout << "Minimim specific energy: "
+            << MINIMUM_SPECIFIC_THERMAL_ENERGY * UNIT_VELOCITY_IN_SI *
+                   UNIT_VELOCITY_IN_SI
+            << " J kg^-1" << std::endl;
+
   std::cout << "Useful units:" << std::endl;
   std::cout << "Point mass: " << MASS_POINT_MASS * UNIT_MASS_IN_MSOL << " Msol"
             << std::endl;
@@ -459,7 +490,10 @@ int main(int argc, char **argv) {
   // we use a global time step, which is the minimum time step among all cells
   uint_fast64_t min_integer_dt = snaptime;
   double Etot = 0.;
-#pragma omp parallel for reduction(min : min_integer_dt) reduction(+ : Etot)
+  double Mtot = 0.;
+  double M1D = 0.;
+  double E1D = 0.;
+#pragma omp parallel for reduction(min : min_integer_dt) reduction(+ : Etot, Mtot, M1D, E1D)
   // convert primitive variables to conserved variables
   for (uint_fast32_t i = 1; i < ncell + 1; ++i) {
     // apply the equation of state to get the initial pressure (if necessary)
@@ -472,7 +506,13 @@ int main(int argc, char **argv) {
     cells[i]._E = cells[i]._P * cells[i]._V / (GAMMA - 1.) +
                   0.5 * cells[i]._u * cells[i]._p;
 
+    cells[i]._m1D = cells[i]._m;
+    cells[i]._E1D = cells[i]._E;
+
+    Mtot += get_shell_mass(cells[i]);
     Etot += get_shell_energy(cells[i]);
+    M1D += cells[i]._m1D;
+    E1D += cells[i]._E1D;
 
     // time step criterion
     const double cs =
@@ -502,11 +542,12 @@ int main(int argc, char **argv) {
   }
 
   std::cout << "Initial minimum timestep: " << min_integer_dt << std::endl;
+  std::cout << "Initial total mass: " << Mtot * UNIT_MASS_IN_SI << " kg"
+            << std::endl;
   std::cout << "Initial total energy: " << Etot * UNIT_ENERGY_IN_SI << " J"
             << std::endl;
 
   std::ofstream energy_file("energy.txt");
-  energy_file << "0.\t" << Etot * UNIT_ENERGY_IN_SI << "\n";
 
   // initialize the log file and write the first entry
   LogFile logfile("logfile.dat", 100);
@@ -551,17 +592,26 @@ int main(int argc, char **argv) {
             << current_integer_dt * time_conversion_factor << std::endl;
   std::cout << "Maximum time: " << integer_maxtime * time_conversion_factor
             << std::endl;
+  std::ofstream time_file("time.txt");
+  time_file << current_integer_time << "\t" << current_integer_dt << "\t"
+            << (current_integer_time * time_conversion_factor / UNIT_TIME_IN_SI)
+            << "\t"
+            << (current_integer_dt * time_conversion_factor / UNIT_TIME_IN_SI)
+            << "\n";
   // main simulation loop: perform NSTEP steps
   while (current_integer_time < integer_maxtime) {
 
     // start the step timer
     step_time.start();
 
-    // add the spherical source term. Handled by Spherical.hpp
-    add_spherical_source_term();
+    // first cooling kick
+    add_cooling();
 
     // do first gravity kick, handled by Potential.hpp
     do_gravity();
+
+    // add the spherical source term. Handled by Spherical.hpp
+    add_spherical_source_term();
 
     // do ionisation, handled by EOS.hpp (and Bondi.hpp for EOS_BONDI).
     do_ionisation();
@@ -571,7 +621,10 @@ int main(int argc, char **argv) {
     // also compute the new time step
     min_integer_dt = snaptime;
     Etot = 0.;
-#pragma omp parallel for reduction(min : min_integer_dt) reduction(+ : Etot)
+    Mtot = 0.;
+    M1D = 0.;
+    E1D = 0.;
+#pragma omp parallel for reduction(min : min_integer_dt) reduction(+ : Etot, Mtot, M1D, E1D)
     for (uint_fast32_t i = 1; i < ncell + 1; ++i) {
       cells[i]._rho = cells[i]._m / cells[i]._V;
       cells[i]._u = cells[i]._p / cells[i]._m;
@@ -579,7 +632,10 @@ int main(int argc, char **argv) {
       // this is handled in EOS.hpp (and Bondi.hpp for EOS_BONDI)
       update_pressure(cells[i]);
 
+      Mtot += get_shell_mass(cells[i]);
       Etot += get_shell_energy(cells[i]);
+      M1D += cells[i]._m1D;
+      E1D += cells[i]._E1D;
 
       const double cs = std::sqrt(GAMMA * cells[i]._P / cells[i]._rho) +
                         std::abs(cells[i]._u);
@@ -590,7 +646,8 @@ int main(int argc, char **argv) {
     }
 
     energy_file << current_integer_time * time_conversion_factor << "\t"
-                << Etot * UNIT_ENERGY_IN_SI << "\n";
+                << Etot * UNIT_ENERGY_IN_SI << "\t" << Mtot * UNIT_MASS_IN_SI
+                << "\t" << M1D << "\t" << E1D << "\n";
 
     // now is the time to write to the log file
     write_logfile(logfile, cells, ncell,
@@ -634,6 +691,8 @@ int main(int argc, char **argv) {
       std::cout << "\t\t\tCentral mass: " << central_mass << " ("
                 << (central_mass / MASS_POINT_MASS) << ")" << std::endl;
 #endif
+      std::cout << "Total mass: " << Mtot * UNIT_MASS_IN_SI << " kg"
+                << std::endl;
       std::cout << "Total energy: " << Etot * UNIT_ENERGY_IN_SI << " J"
                 << std::endl;
       // reset guesstimate counters
@@ -840,6 +899,9 @@ int main(int argc, char **argv) {
       cells[i]._m += cells[i]._left_flux[0] + cells[i]._right_flux[0];
       cells[i]._p += cells[i]._left_flux[1] + cells[i]._right_flux[1];
       cells[i]._E += cells[i]._left_flux[2] + cells[i]._right_flux[2];
+
+      cells[i]._m1D += cells[i]._left_flux[0] + cells[i]._right_flux[0];
+      cells[i]._E1D += cells[i]._left_flux[2] + cells[i]._right_flux[2];
     }
 
     // add the spherical source term
@@ -850,6 +912,9 @@ int main(int argc, char **argv) {
     // handled by Potential.hpp
     do_gravity();
 
+    // second cooling kick
+    add_cooling();
+
     // stop the step timer, and update guesstimate counters
     step_time.stop();
     time_since_last += step_time.value();
@@ -858,6 +923,12 @@ int main(int argc, char **argv) {
 
     // update the system time
     current_integer_time += current_integer_dt;
+    time_file << current_integer_time << "\t" << current_integer_dt << "\t"
+              << (current_integer_time * time_conversion_factor /
+                  UNIT_TIME_IN_SI)
+              << "\t"
+              << (current_integer_dt * time_conversion_factor / UNIT_TIME_IN_SI)
+              << "\n";
   }
   std::cout << "Final total energy: " << Etot * UNIT_ENERGY_IN_SI << " J"
             << std::endl;

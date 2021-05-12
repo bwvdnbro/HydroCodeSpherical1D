@@ -57,6 +57,8 @@ configuration_options = {
     "dimensionality": "DIMENSIONALITY_3D",
     "hydro_order": 2,
     "status_update_interval": 10.0,
+    "cooling": "COOLING_NONE",
+    "minimum_temperature_in_k": 0.0,
 }
 
 ##

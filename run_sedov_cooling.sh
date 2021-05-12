@@ -3,11 +3,10 @@
 # run a Sedov blastwave test in the folder set below, using the number of
 # threads set below
 
-dim=3
-folder=build_sedov
-nthread=4
+folder=build_sedov_cooling
+nthread=1
 
-cmake_command=$(python3 write_configuration_sedov.py $dim)
+cmake_command=$(python3 write_configuration_sedov_cooling.py)
 
 mkdir $folder
 cd $folder

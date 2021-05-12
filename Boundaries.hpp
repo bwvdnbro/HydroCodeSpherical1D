@@ -108,7 +108,10 @@
   uL = -uR;                                                                    \
   PL = PR;
 #else
-#define boundary_left(rhoL, uL, PL, rhoR, uR, PR)
+#define boundary_left(rhoL, uL, PL, rhoR, uR, PR)                              \
+  rhoL = rhoR;                                                                 \
+  uL = uR;                                                                     \
+  PL = PR;
 #endif
 
 /**
@@ -121,7 +124,10 @@
   uR = -uL;                                                                    \
   PR = PL;
 #else
-#define boundary_left(rhoL, uL, PL, rhoR, uR, PR)
+#define boundary_right(rhoL, uL, PL, rhoR, uR, PR)                             \
+  rhoR = rhoL;                                                                 \
+  uR = uL;                                                                     \
+  PR = PL;
 #endif
 
 #endif // BOUNDARIES == BOUNDARIES_BONDI

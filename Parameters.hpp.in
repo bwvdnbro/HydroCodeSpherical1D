@@ -119,6 +119,12 @@
 #define HYDRO_ORDER @hydro_order@
 
 /*! @brief Time in between successive status outputs (in runtime s). */
-#define STATUS_UPDATE_INTERVAL @status_update_interval@
+#define STATUS_UPDATE_INTERVAL (@status_update_interval@)
+
+/*! @brief Cooling mode (set by the configuration). */
+#define COOLING @cooling@
+
+/*! @brief Minimum temperature (in K; set by the configuration). */
+#define MINIMUM_TEMPERATURE_IN_K (@minimum_temperature_in_k@)
 
 #endif // PARAMETERS_HPP

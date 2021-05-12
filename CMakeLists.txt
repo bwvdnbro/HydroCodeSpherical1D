@@ -66,6 +66,8 @@ check_configuration_option(riemannsolver_type "RIEMANNSOLVER_TYPE_HLLC")
 check_configuration_option(dimensionality "DIMENSIONALITY_3D")
 check_configuration_option(hydro_order 2)
 check_configuration_option(status_update_interval 10.)
+check_configuration_option(cooling "COOLING_NONE")
+check_configuration_option(minimum_temperature_in_k 0.)
 
 configure_file(${PROJECT_SOURCE_DIR}/Parameters.hpp.in
                ${PROJECT_BINARY_DIR}/Parameters.hpp @only)

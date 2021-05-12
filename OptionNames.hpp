@@ -97,4 +97,12 @@
 /*! @brief 3D spherically symmetric solver. */
 #define DIMENSIONALITY_3D 2
 
+// Possible types of cooling
+
+/*! @brief No cooling. */
+#define COOLING_NONE 1
+
+/*! @brief Cooling curve.*/
+#define COOLING_CURVE 2
+
 #endif // OPTIONNAMES_HPP

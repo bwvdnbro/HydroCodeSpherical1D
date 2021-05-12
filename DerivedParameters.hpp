@@ -62,9 +62,16 @@
 #define HALF_CELLSIZE (0.5 * CELLSIZE)
 
 /*! @brief Isothermal sound speed squared in the neutral region (if
- *  EOS_ISOTHERMAL is selected, in internal units of L T^-1). */
+ *  EOS_ISOTHERMAL is selected, in internal units of L^2 T^-2). */
 #define ISOTHERMAL_C_SQUARED                                                   \
   (ISOTHERMAL_TEMPERATURE_IN_K * BOLTZMANN_K_IN_SI / HYDROGEN_MASS_IN_SI /     \
    UNIT_VELOCITY_IN_SI / UNIT_VELOCITY_IN_SI)
+
+/*! @brief Minimum specific thermal energy (used when COOLING_CURVE is selected,
+ *  in internal units of L^2 T^-2). */
+#define MINIMUM_SPECIFIC_THERMAL_ENERGY                                        \
+  (MINIMUM_TEMPERATURE_IN_K * BOLTZMANN_K_IN_SI /                              \
+   ((GAMMA - 1.) * HYDROGEN_MASS_IN_SI) /                                      \
+   (UNIT_VELOCITY_IN_SI * UNIT_VELOCITY_IN_SI))
 
 #endif // DERIVEDPARAMETERS_HPP
